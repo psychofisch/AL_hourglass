@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <sstream>
 
 #include <SFML\Graphics.hpp>
 
@@ -32,7 +33,9 @@ public:
 	bool stepMode;
 
 private:
-	vec2Di m_grid;
+	int* m_grid;
+	sf::Image m_gridImage;
+	sf::Vector2i m_dimension;
 	sf::RenderWindow* m_window;
 	sf::View m_view;
 	bool m_step;

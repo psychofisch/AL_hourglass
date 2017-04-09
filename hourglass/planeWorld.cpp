@@ -14,6 +14,7 @@ planeWorld::planeWorld()
 
 planeWorld::~planeWorld()
 {
+	delete[] m_grid;
 }
 
 void planeWorld::run()
@@ -24,7 +25,7 @@ void planeWorld::run()
 	windowCenter /= 2.0f;
 
 	sf::Clock time;
-	float dt = 0.0f;
+	float dt = 0.16f;
 	float tickRun = tick;
 	int currentTile = -1;
 
@@ -40,7 +41,17 @@ void planeWorld::run()
 	debug_text.setPosition(50.f, 50.f);
 	bool measure = true,
 		pause = false;
+
+	std::stringstream debugString;
 	//***d
+
+	sf::Texture gridTexture;
+	sf::Sprite gridSprite;
+
+	gridTexture.create(m_dimension.x, m_dimension.y);
+
+	gridSprite.setTexture(gridTexture);
+	gridSprite.setPosition(0.f, 0.f);
 
 	bool quit = false;
 	while (!quit)
@@ -106,6 +117,9 @@ void planeWorld::run()
 			m_view.move((sf::Vector2f(mousePos) - windowCenter)*dt);
 		}
 
+		if(sf::Mouse::isButtonPressed(sf::Mouse::Left))
+			m_gridImage.setPixel(static_cast<int>(mousePos_mapped.x), static_cast<int>(mousePos_mapped.y), sf::Color::White);
+
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
 			m_view.move(sf::Vector2f(0.f, -1.f)*50.0f*dt);
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
@@ -145,7 +159,9 @@ void planeWorld::run()
 
 		m_window->setView(m_view);
 
-		for (int x = 0; x < m_grid.size(); ++x)
+		gridTexture.update(m_gridImage);
+		m_window->draw(gridSprite);
+		/*for (int x = 0; x < m_grid.size(); ++x)
 		{
 			for (int y = 0; y < m_grid[x].size(); ++y)
 			{
@@ -156,12 +172,20 @@ void planeWorld::run()
 				////debug_text.setString(std::to_string(i));
 				//m_window->draw(debug_text);
 			}
-		}
+		}*/
 
-
+		// debug text
 		m_window->setView(m_window->getDefaultView());
-		debug_text.setString(std::to_string(static_cast<int>(1 / dt)));
+
+		debugString.str(std::string());
+		int fps = 1.f / dt;
+		debugString << fps;
+		debugString << "\n" << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y);
+		debug_text.setString(debugString.str());
+		//debug_text.setString(std::to_string(fps));
+
 		m_window->draw(debug_text);
+		//*** dt
 		//m_window->draw(m_currentTile);
 
 		m_window->display();
@@ -191,16 +215,11 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 	tmpPixel.setFillColor(sf::Color::Green);
 	tmpPixel.value = 0.f;
 
-	m_grid.resize(size_x);
-	for (int x = 0; x < m_grid.size(); ++x)
-	{
-		m_grid[x].resize(size_y);
-		for (int y = 0; y < size_y; ++y)
-		{
-			tmpPixel.setPosition(x * (pixelSize + gap), y * (pixelSize + gap));
-			m_grid[x][y] = tmpPixel;
-		}
-	}
+	m_dimension = sf::Vector2i(size_x, size_y);
+
+	//m_grid = new int[m_dimension.x * m_dimension.y]{0};
+
+	m_gridImage.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 
 	return false;
 }
