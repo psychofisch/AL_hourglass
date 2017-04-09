@@ -3,6 +3,8 @@
 
 #include <SFML\Graphics.hpp>
 
+#include "planeWorld.h"
+
 void main(int argc, char* argv[])
 {
 	sf::VideoMode vm;
@@ -15,4 +17,12 @@ void main(int argc, char* argv[])
 
 	sf::RenderWindow window(vm, "Hourglass Simulation", sf::Style::Titlebar | sf::Style::Close | sf::Style::Default, settings);
 	window.setFramerateLimit(60);
+
+	planeWorld pw;
+	pw.tick = 0.1f;
+	pw.stepMode = false;
+
+	pw.setRenderWindow(&window);
+	pw.setWorldDimensions(300, 1000);
+	pw.run();
 }
