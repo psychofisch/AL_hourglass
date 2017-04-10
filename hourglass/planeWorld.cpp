@@ -97,7 +97,11 @@ void planeWorld::run()
 				case sf::Keyboard::H: std::cout << "no one can help you :)" << std::endl;
 					break;
 				case sf::Keyboard::R:
-					m_gridImagePtr->create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					break;
+				case sf::Keyboard::N:
+					m_step = true;
 					break;
 				case sf::Keyboard::P:
 					pause = !pause;
@@ -148,18 +152,19 @@ void planeWorld::run()
 				tickRun = tick;
 				//m_grid.evaporate(0.85f);
 				//m_player.update(dt);
+				updateGrid();
 				if (measure)
 				{
 					std::cout << "FPS: " << 1 / dt << std::endl;
 					measure = false;
 				}
+				m_step = false;
 			}
 
-			if (stepMode)
-				m_step = false;
-
-			updateGrid();
+			//if (stepMode)
+				//m_step = false;
 		}
+		updateGrid();
 
 		//render
 		m_window->clear(sf::Color(69, 69, 69));
@@ -241,7 +246,7 @@ void planeWorld::updateGrid()
 	const sf::Uint8* gridPtr = m_gridImagePtr->getPixelsPtr();
 	//sf::Uint32 gridSize = m_dimension.x * m_dimension.y * 4 * sizeof(sf::Uint8);
 
-	m_margo = false;
+	//m_margo = false;
 	/*for (sf::Uint32 i = 0; i < gridSize; i += 4)
 	{
 		if (gridPtr[i] > 0)
@@ -256,19 +261,84 @@ void planeWorld::updateGrid()
 	else
 		otherPtr = &m_gridImage1;
 
+	sf::Color fields[4];
+
 	sf::Uint32 tmpI;
-	for (sf::Uint32 y = 0; y < m_dimension.y - 1; ++y)//no need to calculate last line, because it is the floor
+	sf::Uint32 init;
+	if (m_margo)
+		init = 0;
+	else
+		init = 1;
+	m_margo = !m_margo;
+
+	for (sf::Uint32 y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (sf::Uint32 x = 0; x < m_dimension.x; ++x)
+		for (sf::Uint32 x = init; x < m_dimension.x; x += 2)
 		{
-			tmpI = x * y * 4 * sizeof(sf::Uint8);
+			fields[0] = m_gridImagePtr->getPixel(x,     y);
+			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
+			fields[2] = m_gridImagePtr->getPixel(x,     y + 1);
+			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
+
+			//tmpI = x * y * 4 * sizeof(sf::Uint8);
 			//if (gridPtr[tmpI] > 0)
-			if(m_gridImagePtr->getPixel(x, y).r > 0)
+
+			//	x | o		o | o
+			//	- - -	->	- - -
+			//	o | o		x | o
+			if (fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r == 0)
 			{
-				//continue;
-				otherPtr->setPixel(x, y, sf::Color::Black);
-				otherPtr->setPixel(x, y + 1, sf::Color::White);
+				fields[0] = sf::Color::Black;
+				fields[2] = sf::Color::White;
 			}
+			//	o | x		o | o
+			//	- - -	->	- - -
+			//	o | o		o | x
+			else if (fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
+			{
+				fields[1] = sf::Color::Black;
+				fields[3] = sf::Color::White;
+			}
+			//	x | o		o | o	&	o | x		o | o	&	o | x		o | o	&	x | o		o | o
+			//	- - -	->	- - -	&	- - -	->	- - -	& 	- - -	->	- - -	&	- - -	->	- - -
+			//	x | o		x | x	&	o | x		x | x	&	x | o		x | x	&	o | x		x | x
+			else if (	fields[0].r > 0 && fields[1].r == 0 && fields[2].r > 0 && fields[3].r == 0 ||
+						fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0 ||
+						fields[0].r == 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0 ||
+						fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r > 0)
+			{
+				fields[0] = fields[1] = sf::Color::Black;
+				fields[2] = fields[3] = sf::Color::White;
+			}
+			//	x | x		o | x
+			//	- - -	->	- - -
+			//	o | x		x | x
+			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0)
+			{
+				fields[0] = sf::Color::Black;
+				fields[2] = sf::Color::White;
+			}
+			//	x | x		x | o
+			//	- - -	->	- - -
+			//	x | o		x | x
+			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0)
+			{
+				fields[1] = sf::Color::Black;
+				fields[3] = sf::Color::White;
+			}
+			//	x | x		o | o		x | x
+			//	- - -	->	- - -	OR	- - -
+			//	o | o		x | x		o | o
+			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
+			{
+				fields[0] = fields[1] = sf::Color::Black;
+				fields[2] = fields[3] = sf::Color::White;
+			}
+
+			otherPtr->setPixel(x,     y,     fields[0]);
+			otherPtr->setPixel(x + 1, y,     fields[1]);
+			otherPtr->setPixel(x,     y + 1, fields[2]);
+			otherPtr->setPixel(x + 1, y + 1, fields[3]);
 		}
 	}
 
