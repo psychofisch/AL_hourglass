@@ -10,6 +10,8 @@ planeWorld::planeWorld()
 {
 	m_pixel.setFillColor(sf::Color::Green);
 	m_pixel.setSize(sf::Vector2f(pixelSize, pixelSize));
+
+	m_rng = new RNGesus(1, 2, 3);
 }
 
 planeWorld::~planeWorld()
@@ -113,7 +115,7 @@ void planeWorld::run()
 			}
 			else if (eve.type == sf::Event::Resized)
 			{
-				m_view = sf::View(sf::FloatRect(0, 0, eve.size.width, eve.size.height));
+				m_view = sf::View(sf::FloatRect(0, 0, static_cast<float>(eve.size.width), static_cast<float>(eve.size.height)));
 				//sf::Vector2f view_center((m_grid[0].getPosition() + m_grid[m_grid.size() - 1].getPosition()) / 2.0f);
 				m_view.setCenter(sf::Vector2f(0, 0));
 			}
@@ -190,7 +192,7 @@ void planeWorld::run()
 		m_window->setView(m_window->getDefaultView());
 
 		debugString.str(std::string());
-		int fps = 1.f / dt;
+		int fps = int(1.f / dt);
 		debugString << fps;
 		debugString << "\n" << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y);
 		debug_text.setString(debugString.str());
@@ -221,11 +223,6 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 {
 	if(size_x < 0 || size_y < 0)
 		return true;
-
-	Pixel tmpPixel;
-	tmpPixel.setSize(sf::Vector2f(pixelSize, pixelSize));
-	tmpPixel.setFillColor(sf::Color::Green);
-	tmpPixel.value = 0.f;
 
 	m_dimension = sf::Vector2i(size_x, size_y);
 
@@ -263,17 +260,18 @@ void planeWorld::updateGrid()
 
 	sf::Color fields[4];
 
-	sf::Uint32 tmpI;
-	sf::Uint32 init;
+	//sf::Uint32 tmpI;
+	int init;
 	if (m_margo)
 		init = 0;
 	else
 		init = 1;
 	m_margo = !m_margo;
 
-	for (sf::Uint32 y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
+//#pragma omp parallel for
+	for (int y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (sf::Uint32 x = init; x < m_dimension.x; x += 2)
+		for (int x = init; x < m_dimension.x; x += 2)
 		{
 			fields[0] = m_gridImagePtr->getPixel(x,     y);
 			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
@@ -331,8 +329,11 @@ void planeWorld::updateGrid()
 			//	o | o		x | x		o | o
 			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
 			{
-				fields[0] = fields[1] = sf::Color::Black;
-				fields[2] = fields[3] = sf::Color::White;
+				if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.5)
+				{
+					fields[0] = fields[1] = sf::Color::Black;
+					fields[2] = fields[3] = sf::Color::White;
+				}
 			}
 
 			otherPtr->setPixel(x,     y,     fields[0]);

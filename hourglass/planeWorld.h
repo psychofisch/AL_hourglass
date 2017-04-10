@@ -6,15 +6,11 @@
 
 #include <SFML\Graphics.hpp>
 
+#include "RNGesus.h"
+
 class Pixel;
 
 typedef std::vector<std::vector<Pixel>> vec2Di;
-
-class Pixel : public sf::RectangleShape
-{
-public:
-	int value;
-};
 
 class planeWorld
 {
@@ -43,5 +39,6 @@ private:
 	sf::View m_view;
 	bool m_step, m_margo;
 	sf::RectangleShape m_pixel;
+	RNGesus* m_rng;
 };
 
