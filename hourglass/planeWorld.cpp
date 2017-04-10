@@ -240,10 +240,22 @@ void planeWorld::updateGrid()
 		init = 1;
 	m_margo = !m_margo;
 
+	if (init == 1)
+	{
+		for (int x = 0; x < m_dimension.x; ++x)
+			otherPtr->setPixel(x, 0, m_gridImagePtr->getPixel(x, 0));
+		for (int x = 0; x < m_dimension.x; ++x)
+			otherPtr->setPixel(x, m_dimension.y - 1, m_gridImagePtr->getPixel(x, m_dimension.y - 1));
+		for (int y = 0; y < m_dimension.y; ++y)
+			otherPtr->setPixel(0, y, m_gridImagePtr->getPixel(0, y));
+		for (int y = 0; y < m_dimension.y; ++y)
+			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
+	}
+
 //#pragma omp parallel for
 	for (int y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (int x = init; x < m_dimension.x; x += 2)
+		for (int x = init; x < m_dimension.x - 1; x += 2)
 		{
 			fields[0] = m_gridImagePtr->getPixel(x,     y);
 			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
