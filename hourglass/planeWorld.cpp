@@ -12,6 +12,12 @@ planeWorld::planeWorld()
 	m_pixel.setSize(sf::Vector2f(pixelSize, pixelSize));
 
 	m_rng = new RNGesus(1, 2, 3);
+
+	m_brushCircle.setFillColor(sf::Color::Transparent);
+	m_brushCircle.setOutlineColor(sf::Color(69, 69, 69, 255));
+	m_brushCircle.setOutlineThickness(1.f);
+
+	setBrushSize(10);
 }
 
 planeWorld::~planeWorld()
@@ -128,7 +134,11 @@ void planeWorld::run()
 
 		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
-			m_gridImagePtr->setPixel(static_cast<int>(mousePos_mapped.x), static_cast<int>(mousePos_mapped.y), sf::Color::White);
+			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color::White);
+		}
+		else if (sf::Mouse::isButtonPressed(sf::Mouse::Right) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
+		{
+			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color::Black);
 		}
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
@@ -176,6 +186,9 @@ void planeWorld::run()
 		gridTexture.update(*m_gridImagePtr);
 		m_window->draw(gridSprite);
 
+		m_brushCircle.setPosition(mousePos_mapped);
+		m_window->draw(m_brushCircle);
+
 		// debug text
 		m_window->setView(m_window->getDefaultView());
 
@@ -212,10 +225,11 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 	if(size_x < 0 || size_y < 0)
 		return true;
 
-	m_dimension = sf::Vector2i(size_x, size_y);
+	m_dimension = sf::Vector2u(size_x, size_y);
 
 	m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 	m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+
 	m_gridImagePtr = &m_gridImage1;
 
 	return false;
@@ -310,7 +324,7 @@ void planeWorld::updateGrid()
 			//	o | o		x | x		o | o
 			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
 			{
-				if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.5)
+				if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.2)
 				{
 					fields[0] = fields[1] = sf::Color::Black;
 					fields[2] = fields[3] = sf::Color::White;
@@ -333,4 +347,37 @@ void planeWorld::toggleGridBuffer()
 		m_gridImagePtr = &m_gridImage2;
 	else
 		m_gridImagePtr = &m_gridImage1;
+}
+
+void planeWorld::draw(sf::Vector2u pos, sf::Color color)
+{
+	int half = m_brushSize * 0.5;
+	for (int x = -half; x < half; ++x)
+	{
+		for (int y = -half; y < half; ++y)
+		{
+			int dist = i_manhattanDistance(sf::Vector2i(x, y), sf::Vector2i(0, 0));
+			//std::cout << x << "|" << y << ": " << dist << std::endl;
+			if (dist < m_brushSize * 0.8)
+			{
+				int newX = pos.x + x;
+				int newY = pos.y + y;
+				if(newX > half && newY > half && newX < m_dimension.x - half && newY < m_dimension.y - half)
+					m_gridImagePtr->setPixel(newX, newY, color);
+			}
+		}
+	}
+}
+
+void planeWorld::setBrushSize(int size)
+{
+	m_brushSize = size;
+	float half = size * 0.5f;
+	m_brushCircle.setRadius(half);
+	m_brushCircle.setOrigin(sf::Vector2f(half, half));
+}
+
+int planeWorld::i_manhattanDistance(sf::Vector2i a, sf::Vector2i b)
+{
+	return std::abs(a.x - b.x) + std::abs(a.y - b.y);
 }
