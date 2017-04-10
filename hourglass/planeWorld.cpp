@@ -96,6 +96,9 @@ void planeWorld::run()
 				{
 				case sf::Keyboard::H: std::cout << "no one can help you :)" << std::endl;
 					break;
+				case sf::Keyboard::R:
+					m_gridImagePtr->create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					break;
 				case sf::Keyboard::P:
 					pause = !pause;
 					break;
@@ -117,8 +120,10 @@ void planeWorld::run()
 			m_view.move((sf::Vector2f(mousePos) - windowCenter)*dt);
 		}
 
-		if(sf::Mouse::isButtonPressed(sf::Mouse::Left))
-			m_gridImage.setPixel(static_cast<int>(mousePos_mapped.x), static_cast<int>(mousePos_mapped.y), sf::Color::White);
+		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
+		{
+			m_gridImagePtr->setPixel(static_cast<int>(mousePos_mapped.x), static_cast<int>(mousePos_mapped.y), sf::Color::White);
+		}
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
 			m_view.move(sf::Vector2f(0.f, -1.f)*50.0f*dt);
@@ -152,6 +157,8 @@ void planeWorld::run()
 
 			if (stepMode)
 				m_step = false;
+
+			updateGrid();
 		}
 
 		//render
@@ -159,7 +166,7 @@ void planeWorld::run()
 
 		m_window->setView(m_view);
 
-		gridTexture.update(m_gridImage);
+		gridTexture.update(*m_gridImagePtr);
 		m_window->draw(gridSprite);
 		/*for (int x = 0; x < m_grid.size(); ++x)
 		{
@@ -219,7 +226,60 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 
 	//m_grid = new int[m_dimension.x * m_dimension.y]{0};
 
-	m_gridImage.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+	m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+	m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+	m_gridImagePtr = &m_gridImage1;
 
 	return false;
+}
+
+void planeWorld::updateGrid()
+{
+	//sf::Image tmpImage;
+	//tmpImage.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+
+	const sf::Uint8* gridPtr = m_gridImagePtr->getPixelsPtr();
+	//sf::Uint32 gridSize = m_dimension.x * m_dimension.y * 4 * sizeof(sf::Uint8);
+
+	m_margo = false;
+	/*for (sf::Uint32 i = 0; i < gridSize; i += 4)
+	{
+		if (gridPtr[i] > 0)
+		{
+			tmpImage.setPixel()
+		}
+	}*/
+
+	sf::Image* otherPtr;
+	if (m_gridImagePtr == &m_gridImage1)
+		otherPtr = &m_gridImage2;
+	else
+		otherPtr = &m_gridImage1;
+
+	sf::Uint32 tmpI;
+	for (sf::Uint32 y = 0; y < m_dimension.y - 1; ++y)//no need to calculate last line, because it is the floor
+	{
+		for (sf::Uint32 x = 0; x < m_dimension.x; ++x)
+		{
+			tmpI = x * y * 4 * sizeof(sf::Uint8);
+			//if (gridPtr[tmpI] > 0)
+			if(m_gridImagePtr->getPixel(x, y).r > 0)
+			{
+				//continue;
+				otherPtr->setPixel(x, y, sf::Color::Black);
+				otherPtr->setPixel(x, y + 1, sf::Color::White);
+			}
+		}
+	}
+
+	m_gridImagePtr = otherPtr;
+	//toggleGridBuffer();
+}
+
+void planeWorld::toggleGridBuffer()
+{
+	if (m_gridImagePtr == &m_gridImage1)
+		m_gridImagePtr = &m_gridImage2;
+	else
+		m_gridImagePtr = &m_gridImage1;
 }

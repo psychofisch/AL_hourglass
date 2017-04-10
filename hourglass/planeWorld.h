@@ -26,6 +26,8 @@ public:
 	void setRenderWindow(sf::RenderWindow* wndw);
 	bool setWorldDimensions(int size); //true = ERROR; false = successful
 	bool setWorldDimensions(int size_x, int size_y);
+	void updateGrid();
+	void toggleGridBuffer();
 
 	float tick,
 		gap,
@@ -34,11 +36,12 @@ public:
 
 private:
 	int* m_grid;
-	sf::Image m_gridImage;
+	sf::Image* m_gridImagePtr;
+	sf::Image m_gridImage1, m_gridImage2;
 	sf::Vector2i m_dimension;
 	sf::RenderWindow* m_window;
 	sf::View m_view;
-	bool m_step;
+	bool m_step, m_margo;
 	sf::RectangleShape m_pixel;
 };
 
