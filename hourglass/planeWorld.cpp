@@ -175,18 +175,6 @@ void planeWorld::run()
 
 		gridTexture.update(*m_gridImagePtr);
 		m_window->draw(gridSprite);
-		/*for (int x = 0; x < m_grid.size(); ++x)
-		{
-			for (int y = 0; y < m_grid[x].size(); ++y)
-			{
-				m_window->draw(m_grid[x][y]);
-
-				//debug_text.setPosition(m_grid[i].getPosition() - sf::Vector2f(1.f, 1.f));
-				//debug_text.setString(std::to_string(static_cast<int>(m_grid.getPheromoneMap()[i])));
-				////debug_text.setString(std::to_string(i));
-				//m_window->draw(debug_text);
-			}
-		}*/
 
 		// debug text
 		m_window->setView(m_window->getDefaultView());
@@ -226,8 +214,6 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 
 	m_dimension = sf::Vector2i(size_x, size_y);
 
-	//m_grid = new int[m_dimension.x * m_dimension.y]{0};
-
 	m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 	m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 	m_gridImagePtr = &m_gridImage1;
@@ -237,20 +223,7 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 
 void planeWorld::updateGrid()
 {
-	//sf::Image tmpImage;
-	//tmpImage.create(m_dimension.x, m_dimension.y, sf::Color::Black);
-
 	const sf::Uint8* gridPtr = m_gridImagePtr->getPixelsPtr();
-	//sf::Uint32 gridSize = m_dimension.x * m_dimension.y * 4 * sizeof(sf::Uint8);
-
-	//m_margo = false;
-	/*for (sf::Uint32 i = 0; i < gridSize; i += 4)
-	{
-		if (gridPtr[i] > 0)
-		{
-			tmpImage.setPixel()
-		}
-	}*/
 
 	sf::Image* otherPtr;
 	if (m_gridImagePtr == &m_gridImage1)
@@ -260,7 +233,6 @@ void planeWorld::updateGrid()
 
 	sf::Color fields[4];
 
-	//sf::Uint32 tmpI;
 	int init;
 	if (m_margo)
 		init = 0;
@@ -277,9 +249,6 @@ void planeWorld::updateGrid()
 			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
 			fields[2] = m_gridImagePtr->getPixel(x,     y + 1);
 			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
-
-			//tmpI = x * y * 4 * sizeof(sf::Uint8);
-			//if (gridPtr[tmpI] > 0)
 
 			//	x | o		o | o
 			//	- - -	->	- - -
@@ -344,7 +313,6 @@ void planeWorld::updateGrid()
 	}
 
 	m_gridImagePtr = otherPtr;
-	//toggleGridBuffer();
 }
 
 void planeWorld::toggleGridBuffer()
