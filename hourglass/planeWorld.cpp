@@ -61,6 +61,8 @@ void planeWorld::run()
 	gridSprite.setTexture(gridTexture);
 	gridSprite.setPosition(0.f, 0.f);
 
+	i_createHourglass();
+
 	bool quit = false;
 	while (!quit)
 	{
@@ -107,12 +109,26 @@ void planeWorld::run()
 				case sf::Keyboard::R:
 					m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 					m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					i_createHourglass();
 					break;
 				case sf::Keyboard::N:
 					m_step = true;
 					break;
 				case sf::Keyboard::P:
 					pause = !pause;
+					break;
+				case sf::Keyboard::Equal:
+					setBrushSize(m_brushSize + 10);
+					break;
+				case sf::Keyboard::Dash:
+					if(m_brushSize > 10)
+						setBrushSize(m_brushSize - 10);
+					break;
+				case sf::Keyboard::Q:
+					rotate(ROTATE_LEFT);
+					break;
+				case sf::Keyboard::E:
+					rotate(ROTATE_RIGHT);
 					break;
 				case sf::Keyboard::Escape:
 					quit = true;
@@ -134,7 +150,7 @@ void planeWorld::run()
 
 		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
-			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color::White);
+			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color(1, 255, 0));
 		}
 		else if (sf::Mouse::isButtonPressed(sf::Mouse::Right) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
@@ -192,12 +208,11 @@ void planeWorld::run()
 		// debug text
 		m_window->setView(m_window->getDefaultView());
 
-		debugString.str(std::string());
+		debugString.str(std::string());//to clean string
 		int fps = int(1.f / dt);
 		debugString << fps;
 		debugString << "\n" << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y);
 		debug_text.setString(debugString.str());
-		//debug_text.setString(std::to_string(fps));
 
 		m_window->draw(debug_text);
 		//*** dt
@@ -239,11 +254,7 @@ void planeWorld::updateGrid()
 {
 	const sf::Uint8* gridPtr = m_gridImagePtr->getPixelsPtr();
 
-	sf::Image* otherPtr;
-	if (m_gridImagePtr == &m_gridImage1)
-		otherPtr = &m_gridImage2;
-	else
-		otherPtr = &m_gridImage1;
+	sf::Image* otherPtr = i_getOtherPointer();
 
 	int init;
 	if (m_margo)
@@ -275,60 +286,18 @@ void planeWorld::updateGrid()
 			fields[2] = m_gridImagePtr->getPixel(x,     y + 1);
 			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
 
-			//	x | o		o | o
-			//	- - -	->	- - -
-			//	o | o		x | o
-			if (fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r == 0)
+			bool isWall = false;
+			for (int i = 0; i < 4; ++i)
 			{
-				fields[0] = sf::Color::Black;
-				fields[2] = sf::Color::White;
-			}
-			//	o | x		o | o
-			//	- - -	->	- - -
-			//	o | o		o | x
-			else if (fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
-			{
-				fields[1] = sf::Color::Black;
-				fields[3] = sf::Color::White;
-			}
-			//	x | o		o | o	&	o | x		o | o	&	o | x		o | o	&	x | o		o | o
-			//	- - -	->	- - -	&	- - -	->	- - -	& 	- - -	->	- - -	&	- - -	->	- - -
-			//	x | o		x | x	&	o | x		x | x	&	x | o		x | x	&	o | x		x | x
-			else if (	fields[0].r > 0 && fields[1].r == 0 && fields[2].r > 0 && fields[3].r == 0 ||
-						fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0 ||
-						fields[0].r == 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0 ||
-						fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r > 0)
-			{
-				fields[0] = fields[1] = sf::Color::Black;
-				fields[2] = fields[3] = sf::Color::White;
-			}
-			//	x | x		o | x
-			//	- - -	->	- - -
-			//	o | x		x | x
-			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0)
-			{
-				fields[0] = sf::Color::Black;
-				fields[2] = sf::Color::White;
-			}
-			//	x | x		x | o
-			//	- - -	->	- - -
-			//	x | o		x | x
-			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0)
-			{
-				fields[1] = sf::Color::Black;
-				fields[3] = sf::Color::White;
-			}
-			//	x | x		o | o		x | x
-			//	- - -	->	- - -	OR	- - -
-			//	o | o		x | x		o | o
-			else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
-			{
-				if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.2)
+				if (fields[i] == sf::Color::Blue)
 				{
-					fields[0] = fields[1] = sf::Color::Black;
-					fields[2] = fields[3] = sf::Color::White;
+					isWall = true;
+					break;
 				}
 			}
+
+			if(!isWall)
+				i_physicRules(fields);
 
 			otherPtr->setPixel(x,     y,     fields[0]);
 			otherPtr->setPixel(x + 1, y,     fields[1]);
@@ -338,6 +307,72 @@ void planeWorld::updateGrid()
 	}
 
 	m_gridImagePtr = otherPtr;
+}
+
+void planeWorld::i_physicRules(sf::Color * fields)
+{
+	//	x | o		o | o
+	//	- - -	->	- - -
+	//	o | o		x | o
+	if (fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r == 0)
+	{
+		fields[0] = sf::Color::Black;
+		fields[2] = sf::Color::White;
+	}
+	//	o | x		o | o
+	//	- - -	->	- - -
+	//	o | o		o | x
+	else if (fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
+	{
+		fields[1] = sf::Color::Black;
+		fields[3] = sf::Color::White;
+	}
+	//	x | o		o | o	&	o | x		o | o	&	o | x		o | o	&	x | o		o | o
+	//	- - -	->	- - -	&	- - -	->	- - -	& 	- - -	->	- - -	&	- - -	->	- - -
+	//	x | o		x | x	&	o | x		x | x	&	x | o		x | x	&	o | x		x | x
+	else if (fields[0].r > 0 && fields[1].r == 0 && fields[2].r > 0 && fields[3].r == 0 ||
+		fields[0].r == 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0 ||
+		fields[0].r == 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0 ||
+		fields[0].r > 0 && fields[1].r == 0 && fields[2].r == 0 && fields[3].r > 0)
+	{
+		fields[0] = fields[1] = sf::Color::Black;
+		fields[2] = fields[3] = sf::Color::White;
+	}
+	//	x | x		o | x
+	//	- - -	->	- - -
+	//	o | x		x | x
+	else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r > 0)
+	{
+		fields[0] = sf::Color::Black;
+		fields[2] = sf::Color::White;
+	}
+	//	x | x		x | o
+	//	- - -	->	- - -
+	//	x | o		x | x
+	else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r > 0 && fields[3].r == 0)
+	{
+		fields[1] = sf::Color::Black;
+		fields[3] = sf::Color::White;
+	}
+	//	x | x		o | o		x | x
+	//	- - -	->	- - -	OR	- - -
+	//	o | o		x | x		o | o
+	else if (fields[0].r > 0 && fields[1].r > 0 && fields[2].r == 0 && fields[3].r == 0)
+	{
+		if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.2)
+		{
+			fields[0] = fields[1] = sf::Color::Black;
+			fields[2] = fields[3] = sf::Color::White;
+		}
+	}
+}
+
+sf::Image* planeWorld::i_getOtherPointer()
+{
+	if (m_gridImagePtr == &m_gridImage1)
+		return &m_gridImage2;
+	else
+		return &m_gridImage1;
 }
 
 void planeWorld::toggleGridBuffer()
@@ -361,8 +396,12 @@ void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 			{
 				int newX = pos.x + x;
 				int newY = pos.y + y;
-				if(newX > half && newY > half && newX < m_dimension.x - half && newY < m_dimension.y - half)//assuming the brushSize is always smaller than the image
-					m_gridImagePtr->setPixel(newX, newY, color);
+				if(newX > 0 && newY > 0 && newX < m_dimension.x && newY < m_dimension.y)//assuming the brushSize is always smaller than the image
+				{
+					sf::Color cellColor = m_gridImagePtr->getPixel(newX, newY);
+					if(cellColor != sf::Color::Blue)
+						m_gridImagePtr->setPixel(newX, newY, color);
+				}
 			}
 		}
 	}
@@ -376,7 +415,65 @@ void planeWorld::setBrushSize(int size)
 	m_brushCircle.setOrigin(sf::Vector2f(half, half));
 }
 
+void planeWorld::rotate(Rotation r)
+{
+	sf::Image* otherPtr = i_getOtherPointer();
+	otherPtr->create(m_dimension.x, m_dimension.y, sf::Color::Black);
+
+	for (int y = 0; y < m_dimension.y; y += 2)
+	{
+		for (int x = 0; x < m_dimension.x; x += 2)
+		{
+			int newX = x + y + 1;
+			int newY = - x + y + m_dimension.y;
+
+			if (newX > 0 && newX < m_dimension.x && newY > 0 && newY < m_dimension.y)
+			{
+				otherPtr->setPixel(newX, newY, m_gridImagePtr->getPixel(x, y));
+			}
+		}
+	}
+
+	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
+}
+
 int planeWorld::i_manhattanDistance(sf::Vector2i a, sf::Vector2i b)
 {
 	return std::abs(a.x - b.x) + std::abs(a.y - b.y);
+}
+
+void planeWorld::i_createHourglass()
+{
+	double aspectRatio = static_cast<double>(m_dimension.x) / m_dimension.y;
+	int halfX = static_cast<int>(m_dimension.x / 2);
+	int halfY = static_cast<int>(m_dimension.y / 2);
+	for (int x = 0; x < halfX - halfX * 0.03; ++x)
+	{
+		for (int y = 0; y < halfY; ++y)
+		{
+			double tmp = static_cast<double>(x + 1) / (y + 1);
+			if(tmp < aspectRatio)
+				m_gridImagePtr->setPixel(x, y, sf::Color::Blue);
+		}
+	}
+
+	sf::Image* otherPtr = i_getOtherPointer();
+
+	//copy top left corner to the second image
+	otherPtr->copy(*m_gridImagePtr, 0, 0, sf::IntRect(0, 0, halfX, halfY));
+
+	//flip and copy to top right corner
+	m_gridImagePtr->flipHorizontally();
+	otherPtr->copy(*m_gridImagePtr, halfX, 0, sf::IntRect(halfX, 0, halfX, halfY));
+
+	//flip and copy to bottom right corner
+	m_gridImagePtr->flipVertically();
+	otherPtr->copy(*m_gridImagePtr, halfX, halfY, sf::IntRect(halfX, halfY, halfX, halfY));
+
+	//flip and copy to bottom right corner
+	m_gridImagePtr->flipHorizontally();
+	otherPtr->copy(*m_gridImagePtr, 0, halfY, sf::IntRect(0, halfY, halfX, halfY));
+
+	//copy whole image back to the original
+	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
 }

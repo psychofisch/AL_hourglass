@@ -13,6 +13,11 @@ class Pixel;
 class planeWorld
 {
 public:
+	enum Rotation {
+		ROTATE_LEFT = 0,
+		ROTATE_RIGHT
+	};
+
 	planeWorld();
 	~planeWorld();
 
@@ -24,6 +29,7 @@ public:
 	void toggleGridBuffer();
 	void draw(sf::Vector2u pos, sf::Color color);
 	void setBrushSize(int size);
+	void rotate(Rotation r);
 
 	float tick,
 		gap,
@@ -44,5 +50,8 @@ private:
 	sf::CircleShape m_brushCircle;
 
 	int i_manhattanDistance(sf::Vector2i a, sf::Vector2i b);
+	void i_createHourglass();
+	void i_physicRules(sf::Color * fields);
+	sf::Image* i_getOtherPointer();
 };
 
