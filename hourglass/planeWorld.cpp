@@ -159,9 +159,9 @@ void planeWorld::run()
 		tickRun -= dt;
 		if (tickRun <= 0.f)
 		{
+			tickRun = tick;
 			if (m_step == true)
 			{
-				tickRun = tick;
 				//m_grid.evaporate(0.85f);
 				//m_player.update(dt);
 				updateGrid();
@@ -175,8 +175,8 @@ void planeWorld::run()
 
 			//if (stepMode)
 				//m_step = false;
+			updateGrid();
 		}
-		updateGrid();
 
 		//render
 		m_window->clear(sf::Color(69, 69, 69));
@@ -245,8 +245,6 @@ void planeWorld::updateGrid()
 	else
 		otherPtr = &m_gridImage1;
 
-	sf::Color fields[4];
-
 	int init;
 	if (m_margo)
 		init = 0;
@@ -256,13 +254,13 @@ void planeWorld::updateGrid()
 
 	if (init == 1)
 	{
-		for (int x = 0; x < m_dimension.x; ++x)
+		for (unsigned int x = 0; x < m_dimension.x; ++x)
 			otherPtr->setPixel(x, 0, m_gridImagePtr->getPixel(x, 0));
-		for (int x = 0; x < m_dimension.x; ++x)
+		for (unsigned int x = 0; x < m_dimension.x; ++x)
 			otherPtr->setPixel(x, m_dimension.y - 1, m_gridImagePtr->getPixel(x, m_dimension.y - 1));
-		for (int y = 0; y < m_dimension.y; ++y)
+		for (unsigned int y = 1; y < m_dimension.y - 1; ++y)
 			otherPtr->setPixel(0, y, m_gridImagePtr->getPixel(0, y));
-		for (int y = 0; y < m_dimension.y; ++y)
+		for (unsigned int y = 1; y < m_dimension.y - 1; ++y)
 			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
 	}
 
@@ -271,6 +269,7 @@ void planeWorld::updateGrid()
 	{
 		for (int x = init; x < m_dimension.x - 1; x += 2)
 		{
+			sf::Color fields[4];
 			fields[0] = m_gridImagePtr->getPixel(x,     y);
 			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
 			fields[2] = m_gridImagePtr->getPixel(x,     y + 1);
@@ -351,7 +350,7 @@ void planeWorld::toggleGridBuffer()
 
 void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 {
-	int half = m_brushSize * 0.5;
+	int half = static_cast<int>(m_brushSize * 0.5);
 	for (int x = -half; x < half; ++x)
 	{
 		for (int y = -half; y < half; ++y)
@@ -362,7 +361,7 @@ void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 			{
 				int newX = pos.x + x;
 				int newY = pos.y + y;
-				if(newX > half && newY > half && newX < m_dimension.x - half && newY < m_dimension.y - half)
+				if(newX > half && newY > half && newX < m_dimension.x - half && newY < m_dimension.y - half)//assuming the brushSize is always smaller than the image
 					m_gridImagePtr->setPixel(newX, newY, color);
 			}
 		}

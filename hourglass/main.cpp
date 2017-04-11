@@ -19,7 +19,7 @@ void main(int argc, char* argv[])
 	window.setFramerateLimit(60);
 
 	planeWorld pw;
-	pw.tick = .1f;
+	pw.tick = .016f;
 	pw.stepMode = false;
 
 	pw.setRenderWindow(&window);
