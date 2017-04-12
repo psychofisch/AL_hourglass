@@ -64,7 +64,7 @@ void planeWorld::run()
 
 	i_createHourglass();
 
-	i_initOpenCL(0, 0);
+	i_initOpenCL(1, 0);
 
 	bool quit = false;
 	while (!quit)
@@ -133,6 +133,9 @@ void planeWorld::run()
 				case sf::Keyboard::E:
 					rotate(ROTATE_RIGHT);
 					break;
+				case sf::Keyboard::U:
+					updateGrid();
+					break;
 				case sf::Keyboard::Escape:
 					quit = true;
 					break;
@@ -194,7 +197,7 @@ void planeWorld::run()
 
 			//if (stepMode)
 				//m_step = false;
-			updateGrid();
+			//updateGrid();
 		}
 
 		//render
@@ -249,6 +252,8 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 	m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
 
 	m_gridImagePtr = &m_gridImage1;
+
+	m_OpenCL_imageData = new sf::Uint32[size_x * size_y];
 
 	return false;
 }
@@ -406,19 +411,18 @@ void planeWorld::i_initOpenCL(unsigned int platformId, unsigned int deviceId)
 	cl::Platform platform = platforms[platformId]; // on a different machine, you may have to select a different platform
 	std::cout << "Platform Name: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 	cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platform)(), 0 };
-	cl::Context context;
 
-	context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
-	devices = context.getInfo<CL_CONTEXT_DEVICES>();
+	m_OpenCLData.context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
+	devices = m_OpenCLData.context.getInfo<CL_CONTEXT_DEVICES>();
 
 	if (devices.size() == 0 && platforms.size() != 0)
 	{
 		platform = platforms[platformId + 1];
 		cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platform)(), 0 };
 
-		context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
+		m_OpenCLData.context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
 
-		devices = context.getInfo<CL_CONTEXT_DEVICES>();
+		devices = m_OpenCLData.context.getInfo<CL_CONTEXT_DEVICES>();
 
 		if (devices.size() == 0)
 		{
@@ -445,7 +449,7 @@ void planeWorld::i_initOpenCL(unsigned int platformId, unsigned int deviceId)
 		std::istreambuf_iterator<char>(sourceFile),
 		(std::istreambuf_iterator<char>()));
 	cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
-	m_OpenCLData.program = cl::Program(context, source);
+	m_OpenCLData.program = cl::Program(m_OpenCLData.context, source);
 
 	//try {
 	err = m_OpenCLData.program.build(devices);
@@ -472,28 +476,27 @@ void planeWorld::i_updateGridGPU(int init)
 	// create input and output data
 
 	// buffers
-	cl::Buffer elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, m_elements.size() * sizeof(char));
-	cl::Buffer tmp = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, tmp_map.size() * sizeof(char));
-
+	sf::Uint32 imageSize = m_dimension.x * m_dimension.y/* * sizeof(sf::Uint32)*/;
+	cl::Buffer elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, imageSize * sizeof(sf::Uint32));
 	// fill buffers
 	queue.enqueueWriteBuffer(
 		elements, // which buffer to write to
 		CL_TRUE, // block until command is complete
 		0, // offset
-		m_elements.size() * sizeof(char), // size of write 
-		&m_elements[0]); // pointer to input
+		imageSize * sizeof(sf::Uint32), // size of write 
+		m_gridImagePtr->getPixelsPtr()// pointer to input
+	);
 
 	m_OpenCLData.kernel.setArg(0, elements);
-	m_OpenCLData.kernel.setArg(1, tmp);
-	m_OpenCLData.kernel.setArg(2, m_size.x);
-	m_OpenCLData.kernel.setArg(3, m_size.y);
+	m_OpenCLData.kernel.setArg(1, m_dimension.x);
+	m_OpenCLData.kernel.setArg(2, m_dimension.y);
 
 	// launch add kernel
 	// Run the kernel on specific ND range
-	size globalSize;
+	sf::Vector2i globalSize;
 	for (int i = 1; i <= 20; ++i)
 	{
-		if (pow(2, i) > m_size.x)
+		if (pow(2, i) > m_dimension.x/4)
 		{
 			globalSize.x = pow(2, i);
 			break;
@@ -502,7 +505,7 @@ void planeWorld::i_updateGridGPU(int init)
 
 	for (int i = 1; i <= 20; ++i)
 	{
-		if (pow(2, i) > m_size.y)
+		if (pow(2, i) > m_dimension.y/4)
 		{
 			globalSize.y = pow(2, i);
 			break;
@@ -510,22 +513,30 @@ void planeWorld::i_updateGridGPU(int init)
 	}
 
 	if (m_debug)
-		std::cout << "threads|real size -> " << globalSize.x << ":" << m_size.x << "|" << globalSize.y << ":" << m_size.y << std::endl;
+		std::cout << "threads|real size -> " << globalSize.x << ":" << m_dimension.x << "|" << globalSize.y << ":" << m_dimension.y << std::endl;
 
 	cl::NDRange global(globalSize.x, globalSize.y);
 	cl::NDRange local(16, 16); //make sure local range is divisible by global range
 	cl::NDRange offset(0, 0);
 
-	for (int i = 0; i < cycles; ++i)
-	{
-		//std::cout << "call 'cell' kernel; cycle " << i << std::endl;
-		queue.enqueueNDRangeKernel(m_OpenCLData.kernel, offset, global, local);
+	//std::cout << "call 'cell' kernel; cycle " << i << std::endl;
+	queue.enqueueNDRangeKernel(m_OpenCLData.kernel, offset, global, local);
 
-		queue.enqueueCopyBuffer(tmp, elements, 0, 0, m_elements.size() * sizeof(char), 0, 0);
-	}
+	//queue.enqueueCopyBuffer(tmp, elements, 0, 0, m_elements.size() * sizeof(char), 0, 0);
 
 	// read back result
-	queue.enqueueReadBuffer(elements, CL_TRUE, 0, m_elements.size() * sizeof(char), &m_elements[0]);
+	queue.enqueueReadBuffer(elements, CL_TRUE, 0, imageSize * sizeof(sf::Uint32), m_OpenCL_imageData);
+
+	sf::Image* otherPtr = i_getOtherPointer();
+	for (unsigned int y = 0; y < m_dimension.y; ++y)
+	{
+		for (unsigned int x = 0; x < m_dimension.x; ++x)
+		{
+			sf::Uint32 pos = x + (y * m_dimension.x);
+			otherPtr->setPixel(x, y, sf::Color(_byteswap_ulong(m_OpenCL_imageData[pos])));
+			//otherPtr->setPixel(x, y, sf::Color::Magenta);
+		}
+	}
 }
 
 void planeWorld::toggleGridBuffer()
