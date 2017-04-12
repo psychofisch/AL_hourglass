@@ -156,7 +156,8 @@ void planeWorld::run()
 
 		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
-			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color(1, 255, 0));
+			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color::White);
+			//draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color(1, 255, 0));
 		}
 		else if (sf::Mouse::isButtonPressed(sf::Mouse::Right) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
@@ -197,7 +198,7 @@ void planeWorld::run()
 
 			//if (stepMode)
 				//m_step = false;
-			//updateGrid();
+			updateGrid();
 		}
 
 		//render
@@ -490,13 +491,21 @@ void planeWorld::i_updateGridGPU(int init)
 	m_OpenCLData.kernel.setArg(0, elements);
 	m_OpenCLData.kernel.setArg(1, m_dimension.x);
 	m_OpenCLData.kernel.setArg(2, m_dimension.y);
+	m_OpenCLData.kernel.setArg(3, init);
+
+	if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.2)
+	{
+		m_OpenCLData.kernel.setArg(4, 1);
+	}
+	else
+		m_OpenCLData.kernel.setArg(4, 0);
 
 	// launch add kernel
 	// Run the kernel on specific ND range
 	sf::Vector2i globalSize;
 	for (int i = 1; i <= 20; ++i)
 	{
-		if (pow(2, i) > m_dimension.x/4)
+		if (pow(2, i) > m_dimension.x/2)
 		{
 			globalSize.x = pow(2, i);
 			break;
@@ -505,15 +514,15 @@ void planeWorld::i_updateGridGPU(int init)
 
 	for (int i = 1; i <= 20; ++i)
 	{
-		if (pow(2, i) > m_dimension.y/4)
+		if (pow(2, i) > m_dimension.y/2)
 		{
 			globalSize.y = pow(2, i);
 			break;
 		}
 	}
 
-	if (m_debug)
-		std::cout << "threads|real size -> " << globalSize.x << ":" << m_dimension.x << "|" << globalSize.y << ":" << m_dimension.y << std::endl;
+	/*if (m_debug)
+		std::cout << "threads|real size -> " << globalSize.x << ":" << m_dimension.x << "|" << globalSize.y << ":" << m_dimension.y << std::endl;*/
 
 	cl::NDRange global(globalSize.x, globalSize.y);
 	cl::NDRange local(16, 16); //make sure local range is divisible by global range
@@ -528,13 +537,14 @@ void planeWorld::i_updateGridGPU(int init)
 	queue.enqueueReadBuffer(elements, CL_TRUE, 0, imageSize * sizeof(sf::Uint32), m_OpenCL_imageData);
 
 	sf::Image* otherPtr = i_getOtherPointer();
+	sf::Uint32 pos;
 	for (unsigned int y = 0; y < m_dimension.y; ++y)
 	{
 		for (unsigned int x = 0; x < m_dimension.x; ++x)
 		{
-			sf::Uint32 pos = x + (y * m_dimension.x);
+			pos = x + (y * m_dimension.x);
 			otherPtr->setPixel(x, y, sf::Color(_byteswap_ulong(m_OpenCL_imageData[pos])));
-			//otherPtr->setPixel(x, y, sf::Color::Magenta);
+			//otherPtr->setPixel(x, y, sf::Color(m_OpenCL_imageData[pos]));
 		}
 	}
 }
