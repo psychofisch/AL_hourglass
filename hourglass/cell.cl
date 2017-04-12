@@ -3,21 +3,11 @@ __kernel void cell(
 	const int size_x,
 	const int size_y,
 	const int init,
-	const int r
+	const uint rseed
 )
 {
 	int tidX = get_global_id(0);
 	int tidY = get_global_id(1);
-
-	/*if (init == 0)
-	{
-		if (tidX % 2 == 0 || tidY % 2 == 0)
-			return;
-	}
-	else {
-		if (tidX+1 % 2 == 0 || tidY+1 % 2 == 0)
-			return;
-	}*/
 
 	if (tidX < size_x*0.5 && tidY < size_y*0.5)
 	{
@@ -84,7 +74,8 @@ __kernel void cell(
 		//	o | o		x | x		o | o
 		else if (elements[pos[0]] == 0xffffffff && elements[pos[1]] == 0xffffffff && elements[pos[2]] == 0xff000000 && elements[pos[3]] == 0xff000000)
 		{
-			if (r)
+			uint result = rseed + tidX%199 + tidY%79;
+			if (result%7 != 0)
 			{
 				elements[pos[0]] = elements[pos[1]] = 0xff000000;
 				elements[pos[2]] = elements[pos[3]] = 0xffffffff;

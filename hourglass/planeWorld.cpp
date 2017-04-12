@@ -492,13 +492,7 @@ void planeWorld::i_updateGridGPU(int init)
 	m_OpenCLData.kernel.setArg(1, m_dimension.x);
 	m_OpenCLData.kernel.setArg(2, m_dimension.y);
 	m_OpenCLData.kernel.setArg(3, init);
-
-	if (m_rng->GetNumber() / (ULONG_MAX + 1.0f) > 0.2)
-	{
-		m_OpenCLData.kernel.setArg(4, 1);
-	}
-	else
-		m_OpenCLData.kernel.setArg(4, 0);
+	m_OpenCLData.kernel.setArg(4, m_rng->GetNumber()%UINT_MAX);
 
 	// launch add kernel
 	// Run the kernel on specific ND range
