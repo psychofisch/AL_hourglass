@@ -19,6 +19,8 @@ struct OpenCLData {
 	cl::Program program;
 	cl::Device device;
 	cl::Kernel kernel;
+	unsigned int platformId;
+	unsigned int deviceId;
 };
 
 class planeWorld
@@ -27,6 +29,11 @@ public:
 	enum Rotation {
 		ROTATE_LEFT = 0,
 		ROTATE_RIGHT
+	};
+
+	enum MT_MODE {
+		MT_CPU = 0,
+		MT_GPU
 	};
 
 	planeWorld();
@@ -42,6 +49,9 @@ public:
 	void setBrushSize(int size);
 	void rotate(Rotation r);
 	void setNumberOfThreads(unsigned int t);
+	void setMutlithreadingMode(MT_MODE m);
+	void setOpenCLPlatformAndDevice(unsigned int pId, unsigned int dId);
+	void setDebugMode(bool d);
 
 	std::string cl_errorstring(cl_int err);
 	void handle_clerror(cl_int err);
@@ -66,6 +76,7 @@ private:
 	sf::CircleShape m_brushCircle;
 	unsigned int m_numberOfThreads;
 	bool m_debug;
+	MT_MODE m_mtMode;
 
 	OpenCLData m_OpenCLData;
 

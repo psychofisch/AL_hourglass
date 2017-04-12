@@ -9,8 +9,10 @@ __kernel void cell(
 	int tidX = get_global_id(0);
 	int tidY = get_global_id(1);
 
-	if (tidX < size_x*0.5 && tidY < size_y*0.5)
+	if (tidX < size_x*0.5 - 1 && tidY < size_y*0.5 - 1)
 	{
+		uint size = size_x * size_y;
+
 		tidX *= 2;
 		tidY *= 2;
 
@@ -75,7 +77,7 @@ __kernel void cell(
 		else if (elements[pos[0]] == 0xffffffff && elements[pos[1]] == 0xffffffff && elements[pos[2]] == 0xff000000 && elements[pos[3]] == 0xff000000)
 		{
 			uint result = rseed + tidX%199 + tidY%79;
-			if (result%7 != 0)
+			if (result%13 != 0)
 			{
 				elements[pos[0]] = elements[pos[1]] = 0xff000000;
 				elements[pos[2]] = elements[pos[3]] = 0xffffffff;

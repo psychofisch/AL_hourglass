@@ -64,7 +64,7 @@ void planeWorld::run()
 
 	i_createHourglass();
 
-	i_initOpenCL(1, 0);
+	i_initOpenCL(m_OpenCLData.platformId, m_OpenCLData.deviceId);
 
 	bool quit = false;
 	while (!quit)
@@ -135,6 +135,16 @@ void planeWorld::run()
 					break;
 				case sf::Keyboard::U:
 					updateGrid();
+					break;
+				case sf::Keyboard::Num1:
+					if (m_debug)
+						std::cout << "switched to CPU mode\n";
+					m_mtMode = MT_CPU;
+					break;
+				case sf::Keyboard::Num2:
+					if (m_debug)
+						std::cout << "switched to GPU mode\n";
+					m_mtMode = MT_GPU;
 					break;
 				case sf::Keyboard::Escape:
 					quit = true;
@@ -217,8 +227,14 @@ void planeWorld::run()
 
 		debugString.str(std::string());//to clean string
 		int fps = int(1.f / dt);
-		debugString << fps;
-		debugString << "\n" << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y);
+		debugString << fps << std::endl;
+		debugString << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y) << std::endl;
+		if (m_mtMode == MT_CPU)
+			debugString << "CPU\n";
+		else if (m_mtMode == MT_GPU)
+			debugString << "GPU\n";
+		else
+			debugString << "???\n";
 		debug_text.setString(debugString.str());
 
 		m_window->draw(debug_text);
@@ -284,8 +300,15 @@ void planeWorld::updateGrid()
 			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
 	}
 
-	//i_updateGridCPU(init);
-	i_updateGridGPU(init);
+	if(m_mtMode == MT_CPU)
+		i_updateGridCPU(init);
+	else if(m_mtMode == MT_GPU)
+		i_updateGridGPU(init);
+	else
+	{
+		std::cout << "undefined mode \"" << m_mtMode << "\" -> exiting\n";
+		return;
+	}
 
 	m_gridImagePtr = otherPtr;
 }
@@ -474,7 +497,6 @@ void planeWorld::i_updateGridGPU(int init)
 	cl_int err = CL_SUCCESS;
 	cl::CommandQueue queue(m_OpenCLData.context, m_OpenCLData.device, 0, &err);
 	handle_clerror(err);
-	// create input and output data
 
 	// buffers
 	sf::Uint32 imageSize = m_dimension.x * m_dimension.y/* * sizeof(sf::Uint32)*/;
@@ -611,6 +633,22 @@ void planeWorld::rotate(Rotation r)
 void planeWorld::setNumberOfThreads(unsigned int t)
 {
 	m_numberOfThreads = t;
+}
+
+void planeWorld::setMutlithreadingMode(MT_MODE m)
+{
+	m_mtMode = m;
+}
+
+void planeWorld::setOpenCLPlatformAndDevice(unsigned int pId, unsigned int dId)
+{
+	m_OpenCLData.platformId = pId;
+	m_OpenCLData.deviceId = dId;
+}
+
+void planeWorld::setDebugMode(bool d)
+{
+	m_debug = d;
 }
 
 int planeWorld::i_manhattanDistance(sf::Vector2i a, sf::Vector2i b)
