@@ -24,5 +24,6 @@ void main(int argc, char* argv[])
 
 	pw.setRenderWindow(&window);
 	pw.setWorldDimensions(300, 1000);
+	pw.setNumberOfThreads(1);
 	pw.run();
 }

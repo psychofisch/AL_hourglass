@@ -1,14 +1,25 @@
 #pragma once
 
+#define NOMINMAX
+
 #include <iostream>
 #include <vector>
 #include <sstream>
+#include <omp.h>
+#include <fstream>
+
+#include <CL/cl.hpp>
 
 #include <SFML\Graphics.hpp>
 
 #include "RNGesus.h"
 
-class Pixel;
+struct OpenCLData {
+	cl::Context context;
+	cl::Program program;
+	cl::Device device;
+	cl::Kernel kernel;
+};
 
 class planeWorld
 {
@@ -30,6 +41,10 @@ public:
 	void draw(sf::Vector2u pos, sf::Color color);
 	void setBrushSize(int size);
 	void rotate(Rotation r);
+	void setNumberOfThreads(unsigned int t);
+
+	std::string cl_errorstring(cl_int err);
+	void handle_clerror(cl_int err);
 
 	float tick,
 		gap,
@@ -48,10 +63,16 @@ private:
 	RNGesus* m_rng;
 	unsigned int m_brushSize;
 	sf::CircleShape m_brushCircle;
+	unsigned int m_numberOfThreads;
+	bool m_debug;
+
+	OpenCLData m_OpenCLData;
 
 	int i_manhattanDistance(sf::Vector2i a, sf::Vector2i b);
 	void i_createHourglass();
 	void i_physicRules(sf::Color * fields);
 	sf::Image* i_getOtherPointer();
+	void i_updateGridCPU(int init);
+	void i_initOpenCL(unsigned int platformId, unsigned int deviceId);
+	void i_updateGridGPU(int init);
 };
-

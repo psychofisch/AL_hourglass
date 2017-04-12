@@ -6,7 +6,8 @@ planeWorld::planeWorld()
 	:tick(0.1f),
 	stepMode(false),
 	gap(1.f),
-	pixelSize(1.f)
+	pixelSize(1.f),
+	m_debug(true)
 {
 	m_pixel.setFillColor(sf::Color::Green);
 	m_pixel.setSize(sf::Vector2f(pixelSize, pixelSize));
@@ -62,6 +63,8 @@ void planeWorld::run()
 	gridSprite.setPosition(0.f, 0.f);
 
 	i_createHourglass();
+
+	i_initOpenCL(0, 0);
 
 	bool quit = false;
 	while (!quit)
@@ -275,36 +278,8 @@ void planeWorld::updateGrid()
 			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
 	}
 
-//#pragma omp parallel for
-	for (int y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
-	{
-		for (int x = init; x < m_dimension.x - 1; x += 2)
-		{
-			sf::Color fields[4];
-			fields[0] = m_gridImagePtr->getPixel(x,     y);
-			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
-			fields[2] = m_gridImagePtr->getPixel(x,     y + 1);
-			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
-
-			bool isWall = false;
-			for (int i = 0; i < 4; ++i)
-			{
-				if (fields[i] == sf::Color::Blue)
-				{
-					isWall = true;
-					break;
-				}
-			}
-
-			if(!isWall)
-				i_physicRules(fields);
-
-			otherPtr->setPixel(x,     y,     fields[0]);
-			otherPtr->setPixel(x + 1, y,     fields[1]);
-			otherPtr->setPixel(x,     y + 1, fields[2]);
-			otherPtr->setPixel(x + 1, y + 1, fields[3]);
-		}
-	}
+	//i_updateGridCPU(init);
+	i_updateGridGPU(init);
 
 	m_gridImagePtr = otherPtr;
 }
@@ -375,6 +350,184 @@ sf::Image* planeWorld::i_getOtherPointer()
 		return &m_gridImage1;
 }
 
+void planeWorld::i_updateGridCPU(int init)
+{
+	sf::Image* otherPtr = i_getOtherPointer();
+	//omp_set_dynamic(0);
+	#pragma omp parallel for num_threads(m_numberOfThreads)
+	for (int y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
+	{
+		for (int x = init; x < m_dimension.x - 1; x += 2)
+		{
+			sf::Color fields[4];
+			fields[0] = m_gridImagePtr->getPixel(x, y);
+			fields[1] = m_gridImagePtr->getPixel(x + 1, y);
+			fields[2] = m_gridImagePtr->getPixel(x, y + 1);
+			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
+
+			bool isWall = false;
+			for (int i = 0; i < 4; ++i)
+			{
+				if (fields[i] == sf::Color::Blue)
+				{
+					isWall = true;
+					break;
+				}
+			}
+
+			if (!isWall)
+				i_physicRules(fields);
+
+			otherPtr->setPixel(x, y, fields[0]);
+			otherPtr->setPixel(x + 1, y, fields[1]);
+			otherPtr->setPixel(x, y + 1, fields[2]);
+			otherPtr->setPixel(x + 1, y + 1, fields[3]);
+		}
+	}
+}
+
+void planeWorld::i_initOpenCL(unsigned int platformId, unsigned int deviceId)
+{
+	const std::string KERNEL_FILE = "cell.cl";
+	cl_int err = CL_SUCCESS;
+	std::vector<cl::Device> devices;
+
+	platformId = ((platformId < 0) ? 0 : platformId);
+	deviceId = ((deviceId < 0) ? 0 : deviceId);
+
+	std::vector<cl::Platform> platforms;
+	cl::Platform::get(&platforms);
+	if (platforms.size() == 0) {
+		std::cout << "No OpenCL platforms available!\n";
+		return;
+	}
+
+	// create a context and get available devices
+	cl::Platform platform = platforms[platformId]; // on a different machine, you may have to select a different platform
+	std::cout << "Platform Name: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
+	cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platform)(), 0 };
+	cl::Context context;
+
+	context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
+	devices = context.getInfo<CL_CONTEXT_DEVICES>();
+
+	if (devices.size() == 0 && platforms.size() != 0)
+	{
+		platform = platforms[platformId + 1];
+		cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platform)(), 0 };
+
+		context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
+
+		devices = context.getInfo<CL_CONTEXT_DEVICES>();
+
+		if (devices.size() == 0)
+		{
+			std::cout << "no available devices found\n";
+			exit(666);
+		}
+	}
+
+	char deviceName[255];
+	err = devices[deviceId].getInfo(CL_DEVICE_NAME, &deviceName);
+	handle_clerror(err);
+	if (m_debug)
+		std::cout << deviceName << std::endl;
+	m_OpenCLData.device = devices[deviceId];
+
+	// load and build the kernel
+	std::ifstream sourceFile(KERNEL_FILE);
+	if (!sourceFile)
+	{
+		std::cout << "kernel source file " << KERNEL_FILE << " not found!" << std::endl;
+		return;
+	}
+	std::string sourceCode(
+		std::istreambuf_iterator<char>(sourceFile),
+		(std::istreambuf_iterator<char>()));
+	cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
+	m_OpenCLData.program = cl::Program(context, source);
+
+	//try {
+	err = m_OpenCLData.program.build(devices);
+	if (err != ERROR_SUCCESS)
+	{
+		std::string s;
+		m_OpenCLData.program.getBuildInfo(devices[0], CL_PROGRAM_BUILD_LOG, &s);
+		std::cout << s << std::endl;
+		m_OpenCLData.program.getBuildInfo(devices[0], CL_PROGRAM_BUILD_OPTIONS, &s);
+		std::cout << s << std::endl;
+	}
+	handle_clerror(err);
+
+	//create kernels
+	m_OpenCLData.kernel = cl::Kernel(m_OpenCLData.program, "cell", &err);
+	handle_clerror(err);
+}
+
+void planeWorld::i_updateGridGPU(int init)
+{
+	cl_int err = CL_SUCCESS;
+	cl::CommandQueue queue(m_OpenCLData.context, m_OpenCLData.device, 0, &err);
+	handle_clerror(err);
+	// create input and output data
+
+	// buffers
+	cl::Buffer elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, m_elements.size() * sizeof(char));
+	cl::Buffer tmp = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, tmp_map.size() * sizeof(char));
+
+	// fill buffers
+	queue.enqueueWriteBuffer(
+		elements, // which buffer to write to
+		CL_TRUE, // block until command is complete
+		0, // offset
+		m_elements.size() * sizeof(char), // size of write 
+		&m_elements[0]); // pointer to input
+
+	m_OpenCLData.kernel.setArg(0, elements);
+	m_OpenCLData.kernel.setArg(1, tmp);
+	m_OpenCLData.kernel.setArg(2, m_size.x);
+	m_OpenCLData.kernel.setArg(3, m_size.y);
+
+	// launch add kernel
+	// Run the kernel on specific ND range
+	size globalSize;
+	for (int i = 1; i <= 20; ++i)
+	{
+		if (pow(2, i) > m_size.x)
+		{
+			globalSize.x = pow(2, i);
+			break;
+		}
+	}
+
+	for (int i = 1; i <= 20; ++i)
+	{
+		if (pow(2, i) > m_size.y)
+		{
+			globalSize.y = pow(2, i);
+			break;
+		}
+	}
+
+	if (m_debug)
+		std::cout << "threads|real size -> " << globalSize.x << ":" << m_size.x << "|" << globalSize.y << ":" << m_size.y << std::endl;
+
+	cl::NDRange global(globalSize.x, globalSize.y);
+	cl::NDRange local(16, 16); //make sure local range is divisible by global range
+	cl::NDRange offset(0, 0);
+
+	for (int i = 0; i < cycles; ++i)
+	{
+		//std::cout << "call 'cell' kernel; cycle " << i << std::endl;
+		queue.enqueueNDRangeKernel(m_OpenCLData.kernel, offset, global, local);
+
+		queue.enqueueCopyBuffer(tmp, elements, 0, 0, m_elements.size() * sizeof(char), 0, 0);
+	}
+
+	// read back result
+	queue.enqueueReadBuffer(elements, CL_TRUE, 0, m_elements.size() * sizeof(char), &m_elements[0]);
+}
+
 void planeWorld::toggleGridBuffer()
 {
 	if (m_gridImagePtr == &m_gridImage1)
@@ -420,21 +573,29 @@ void planeWorld::rotate(Rotation r)
 	sf::Image* otherPtr = i_getOtherPointer();
 	otherPtr->create(m_dimension.x, m_dimension.y, sf::Color::Black);
 
-	for (int y = 0; y < m_dimension.y; y += 2)
+	for (int y = 0; y < m_dimension.y; ++y)
 	{
-		for (int x = 0; x < m_dimension.x; x += 2)
+		for (int x = 0; x < m_dimension.x; ++x)
 		{
 			int newX = x + y + 1;
 			int newY = - x + y + m_dimension.y;
 
 			if (newX > 0 && newX < m_dimension.x && newY > 0 && newY < m_dimension.y)
 			{
-				otherPtr->setPixel(newX, newY, m_gridImagePtr->getPixel(x, y));
+				sf::Color tmpCol = m_gridImagePtr->getPixel(x, y);
+				//if (tmpCol != sf::Color::Black)
+				//	__debugbreak();
+				otherPtr->setPixel(newX, newY, tmpCol);
 			}
 		}
 	}
 
 	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
+}
+
+void planeWorld::setNumberOfThreads(unsigned int t)
+{
+	m_numberOfThreads = t;
 }
 
 int planeWorld::i_manhattanDistance(sf::Vector2i a, sf::Vector2i b)
@@ -476,4 +637,68 @@ void planeWorld::i_createHourglass()
 
 	//copy whole image back to the original
 	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
+}
+
+std::string planeWorld::cl_errorstring(cl_int err) {
+	switch (err) {
+	case CL_SUCCESS:                          return std::string("Success");
+	case CL_DEVICE_NOT_FOUND:                 return std::string("Device not found");
+	case CL_DEVICE_NOT_AVAILABLE:             return std::string("Device not available");
+	case CL_COMPILER_NOT_AVAILABLE:           return std::string("Compiler not available");
+	case CL_MEM_OBJECT_ALLOCATION_FAILURE:    return std::string("Memory object allocation failure");
+	case CL_OUT_OF_RESOURCES:                 return std::string("Out of resources");
+	case CL_OUT_OF_HOST_MEMORY:               return std::string("Out of host memory");
+	case CL_PROFILING_INFO_NOT_AVAILABLE:     return std::string("Profiling information not available");
+	case CL_MEM_COPY_OVERLAP:                 return std::string("Memory copy overlap");
+	case CL_IMAGE_FORMAT_MISMATCH:            return std::string("Image format mismatch");
+	case CL_IMAGE_FORMAT_NOT_SUPPORTED:       return std::string("Image format not supported");
+	case CL_BUILD_PROGRAM_FAILURE:            return std::string("Program build failure");
+	case CL_MAP_FAILURE:                      return std::string("Map failure");
+		// case CL_MISALIGNED_SUB_BUFFER_OFFSET:     return std::string("Misaligned sub buffer offset");
+		// case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: return std::string("Exec status error for events in wait list");
+	case CL_INVALID_VALUE:                    return std::string("Invalid value");
+	case CL_INVALID_DEVICE_TYPE:              return std::string("Invalid device type");
+	case CL_INVALID_PLATFORM:                 return std::string("Invalid platform");
+	case CL_INVALID_DEVICE:                   return std::string("Invalid device");
+	case CL_INVALID_CONTEXT:                  return std::string("Invalid context");
+	case CL_INVALID_QUEUE_PROPERTIES:         return std::string("Invalid queue properties");
+	case CL_INVALID_COMMAND_QUEUE:            return std::string("Invalid command queue");
+	case CL_INVALID_HOST_PTR:                 return std::string("Invalid host pointer");
+	case CL_INVALID_MEM_OBJECT:               return std::string("Invalid memory object");
+	case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:  return std::string("Invalid image format descriptor");
+	case CL_INVALID_IMAGE_SIZE:               return std::string("Invalid image size");
+	case CL_INVALID_SAMPLER:                  return std::string("Invalid sampler");
+	case CL_INVALID_BINARY:                   return std::string("Invalid binary");
+	case CL_INVALID_BUILD_OPTIONS:            return std::string("Invalid build options");
+	case CL_INVALID_PROGRAM:                  return std::string("Invalid program");
+	case CL_INVALID_PROGRAM_EXECUTABLE:       return std::string("Invalid program executable");
+	case CL_INVALID_KERNEL_NAME:              return std::string("Invalid kernel name");
+	case CL_INVALID_KERNEL_DEFINITION:        return std::string("Invalid kernel definition");
+	case CL_INVALID_KERNEL:                   return std::string("Invalid kernel");
+	case CL_INVALID_ARG_INDEX:                return std::string("Invalid argument index");
+	case CL_INVALID_ARG_VALUE:                return std::string("Invalid argument value");
+	case CL_INVALID_ARG_SIZE:                 return std::string("Invalid argument size");
+	case CL_INVALID_KERNEL_ARGS:              return std::string("Invalid kernel arguments");
+	case CL_INVALID_WORK_DIMENSION:           return std::string("Invalid work dimension");
+	case CL_INVALID_WORK_GROUP_SIZE:          return std::string("Invalid work group size");
+	case CL_INVALID_WORK_ITEM_SIZE:           return std::string("Invalid work item size");
+	case CL_INVALID_GLOBAL_OFFSET:            return std::string("Invalid global offset");
+	case CL_INVALID_EVENT_WAIT_LIST:          return std::string("Invalid event wait list");
+	case CL_INVALID_EVENT:                    return std::string("Invalid event");
+	case CL_INVALID_OPERATION:                return std::string("Invalid operation");
+	case CL_INVALID_GL_OBJECT:                return std::string("Invalid OpenGL object");
+	case CL_INVALID_BUFFER_SIZE:              return std::string("Invalid buffer size");
+	case CL_INVALID_MIP_LEVEL:                return std::string("Invalid mip-map level");
+	case CL_INVALID_GLOBAL_WORK_SIZE:         return std::string("Invalid gloal work size");
+		// case CL_INVALID_PROPERTY:                 return std::string("Invalid property");
+	default:                                  return std::string("Unknown error code");
+	}
+}
+
+void planeWorld::handle_clerror(cl_int err) {
+	if (err != CL_SUCCESS) {
+		std::cerr << "OpenCL Error: " << cl_errorstring(err) << std::string(".") << std::endl;
+		std::cin.ignore();
+		exit(EXIT_FAILURE);
+	}
 }
