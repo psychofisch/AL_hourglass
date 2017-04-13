@@ -208,7 +208,8 @@ void planeWorld::run()
 
 			//if (stepMode)
 				//m_step = false;
-			updateGrid();
+			if(!pause)
+				updateGrid();
 		}
 
 		//render
@@ -271,6 +272,9 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 	m_gridImagePtr = &m_gridImage1;
 
 	m_OpenCL_imageData = new sf::Uint32[size_x * size_y];
+
+	unsigned int pyth = sqrt(pow(m_dimension.x, 2) + pow(m_dimension.y, 2));
+	m_rotationBuffer.create(pyth, pyth);
 
 	return false;
 }
@@ -607,27 +611,29 @@ void planeWorld::setBrushSize(int size)
 
 void planeWorld::rotate(Rotation r)
 {
-	sf::Image* otherPtr = i_getOtherPointer();
-	otherPtr->create(m_dimension.x, m_dimension.y, sf::Color::Black);
+	float halfX = m_dimension.x / 2;
+	float halfY = m_dimension.y / 2;
+	unsigned int pyth = m_rotationBuffer.getSize().x;
 
-	for (int y = 0; y < m_dimension.y; ++y)
-	{
-		for (int x = 0; x < m_dimension.x; ++x)
-		{
-			int newX = x + y + 1;
-			int newY = - x + y + m_dimension.y;
+	sf::Texture tex;
+	tex.loadFromImage(*m_gridImagePtr);
+	sf::Sprite sprite;
+	sprite.setTexture(tex);
+	sprite.setOrigin(m_dimension.x / 2, m_dimension.y / 2);
+	sprite.setPosition(pyth/2, pyth/2);
+	float angle = 0;
+	if (r == ROTATE_LEFT)
+		angle = -10;
+	else if (r == ROTATE_RIGHT)
+		angle = 10;
+	sprite.setRotation(angle);
+	m_rotationBuffer.clear(sf::Color::Black);
+	m_rotationBuffer.draw(sprite);
+	m_rotationBuffer.display();
 
-			if (newX > 0 && newX < m_dimension.x && newY > 0 && newY < m_dimension.y)
-			{
-				sf::Color tmpCol = m_gridImagePtr->getPixel(x, y);
-				//if (tmpCol != sf::Color::Black)
-				//	__debugbreak();
-				otherPtr->setPixel(newX, newY, tmpCol);
-			}
-		}
-	}
-
-	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
+	sf::Image& img = m_rotationBuffer.getTexture().copyToImage();
+	//m_gridImagePtr->copy(img, 0, 0, sf::IntRect((img.getSize().x / 2) - (m_dimension.x / 2), (img.getSize().x / 2) - (m_dimension.x / 2), m_dimension.x, m_dimension.y));
+	m_gridImagePtr->copy(img, 0, 0, sf::IntRect((pyth - m_dimension.x)*0.5, (pyth - m_dimension.y)*0.5, m_dimension.x, m_dimension.y));
 }
 
 void planeWorld::setNumberOfThreads(unsigned int t)

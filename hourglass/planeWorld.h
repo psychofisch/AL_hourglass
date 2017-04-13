@@ -65,6 +65,7 @@ private:
 	int* m_grid;
 	sf::Image* m_gridImagePtr;
 	sf::Image m_gridImage1, m_gridImage2;
+	sf::RenderTexture m_rotationBuffer;
 	sf::Uint32* m_OpenCL_imageData;
 	sf::Vector2u m_dimension;
 	sf::RenderWindow* m_window;
