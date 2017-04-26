@@ -136,15 +136,22 @@ void planeWorld::run()
 				case sf::Keyboard::U:
 					updateGrid();
 					break;
-				case sf::Keyboard::Num1:
+				case sf::Keyboard::T:
+					if (m_mtMode == MT_CPU)
+						m_mtMode = MT_GPU;
+					else
+						m_mtMode = MT_CPU;
+
 					if (m_debug)
-						std::cout << "switched to CPU mode\n";
-					m_mtMode = MT_CPU;
+						std::cout << "switched to " << ((m_mtMode == MT_CPU) ? "C" : "G") << "PU mode\n";
+					break;
+				case sf::Keyboard::Num1:
+					if(m_numberOfThreads > 1)
+						m_numberOfThreads--;
 					break;
 				case sf::Keyboard::Num2:
-					if (m_debug)
-						std::cout << "switched to GPU mode\n";
-					m_mtMode = MT_GPU;
+					if (m_numberOfThreads < omp_get_max_threads())
+						m_numberOfThreads++;
 					break;
 				case sf::Keyboard::Escape:
 					quit = true;
@@ -231,11 +238,12 @@ void planeWorld::run()
 		debugString << fps << std::endl;
 		debugString << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y) << std::endl;
 		if (m_mtMode == MT_CPU)
-			debugString << "CPU\n";
+			debugString << "CPU " << m_numberOfThreads << std::endl;
 		else if (m_mtMode == MT_GPU)
 			debugString << "GPU\n";
 		else
 			debugString << "???\n";
+
 		debug_text.setString(debugString.str());
 
 		m_window->draw(debug_text);
