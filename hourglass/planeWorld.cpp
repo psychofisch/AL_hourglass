@@ -57,7 +57,7 @@ void planeWorld::run()
 	sf::Texture gridTexture;
 	sf::Sprite gridSprite;
 
-	gridTexture.create(m_dimension.x, m_dimension.y);
+	gridTexture.create(m_pythagoras, m_pythagoras);
 
 	gridSprite.setTexture(gridTexture);
 	gridSprite.setPosition(0.f, 0.f);
@@ -110,8 +110,8 @@ void planeWorld::run()
 				case sf::Keyboard::H: std::cout << "no one can help you :)" << std::endl;
 					break;
 				case sf::Keyboard::R:
-					m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
-					m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+					m_gridImage1.create(m_pythagoras, m_pythagoras, sf::Color::Black);
+					m_gridImage2.create(m_pythagoras, m_pythagoras, sf::Color::Black);
 					i_createHourglass();
 					break;
 				case sf::Keyboard::N:
@@ -266,15 +266,19 @@ bool planeWorld::setWorldDimensions(int size_x, int size_y)
 
 	m_dimension = sf::Vector2u(size_x, size_y);
 
-	m_gridImage1.create(m_dimension.x, m_dimension.y, sf::Color::Black);
-	m_gridImage2.create(m_dimension.x, m_dimension.y, sf::Color::Black);
+	m_pythagoras = sqrt(pow(m_dimension.x, 2) + pow(m_dimension.y, 2));
+
+	m_gridImage1.create(m_pythagoras, m_pythagoras, sf::Color::Black);
+	m_gridImage2.create(m_pythagoras, m_pythagoras, sf::Color::Black);
 
 	m_gridImagePtr = &m_gridImage1;
 
-	m_OpenCL_imageData = new sf::Uint32[size_x * size_y];
+	m_OpenCL_imageData = new sf::Uint32[m_pythagoras * m_pythagoras];
 
-	unsigned int pyth = sqrt(pow(m_dimension.x, 2) + pow(m_dimension.y, 2));
-	m_rotationBuffer.create(pyth, pyth);
+	m_rotationBuffer.create(m_pythagoras, m_pythagoras);
+
+	m_startPoints.x = (m_pythagoras - m_dimension.x) / 2;
+	m_startPoints.y = (m_pythagoras - m_dimension.y) / 2;
 
 	return false;
 }
@@ -292,9 +296,9 @@ void planeWorld::updateGrid()
 		init = 1;
 	m_margo = !m_margo;
 
-	if (init == 1)
+	/*if (init == 1)
 	{
-		for (unsigned int x = 0; x < m_dimension.x; ++x)
+		for (unsigned int x = m_startPoints.x; x < m_startPoints.x + m_dimension.x; ++x)
 			otherPtr->setPixel(x, 0, m_gridImagePtr->getPixel(x, 0));
 		for (unsigned int x = 0; x < m_dimension.x; ++x)
 			otherPtr->setPixel(x, m_dimension.y - 1, m_gridImagePtr->getPixel(x, m_dimension.y - 1));
@@ -302,7 +306,7 @@ void planeWorld::updateGrid()
 			otherPtr->setPixel(0, y, m_gridImagePtr->getPixel(0, y));
 		for (unsigned int y = 1; y < m_dimension.y - 1; ++y)
 			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
-	}
+	}*/
 
 	if(m_mtMode == MT_CPU)
 		i_updateGridCPU(init);
@@ -388,9 +392,9 @@ void planeWorld::i_updateGridCPU(int init)
 	sf::Image* otherPtr = i_getOtherPointer();
 	//omp_set_dynamic(0);
 	#pragma omp parallel for num_threads(m_numberOfThreads)
-	for (int y = init; y < m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
+	for (int y = m_startPoints.y + init; y < m_startPoints.y + m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (int x = init; x < m_dimension.x - 1; x += 2)
+		for (int x = m_startPoints.x + init; x < m_startPoints.x + m_dimension.x - 1; x += 2)
 		{
 			sf::Color fields[4];
 			fields[0] = m_gridImagePtr->getPixel(x, y);
@@ -590,7 +594,7 @@ void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 			{
 				int newX = pos.x + x;
 				int newY = pos.y + y;
-				if(newX > 0 && newY > 0 && newX < m_dimension.x && newY < m_dimension.y)//assuming the brushSize is always smaller than the image
+				if(newX > m_startPoints.x && newY > m_startPoints.y && newX < m_startPoints.x + m_dimension.x && newY < m_startPoints.y + m_dimension.y)//assuming the brushSize is always smaller than the image
 				{
 					sf::Color cellColor = m_gridImagePtr->getPixel(newX, newY);
 					if(cellColor != sf::Color::Blue)
@@ -619,13 +623,13 @@ void planeWorld::rotate(Rotation r)
 	tex.loadFromImage(*m_gridImagePtr);
 	sf::Sprite sprite;
 	sprite.setTexture(tex);
-	sprite.setOrigin(m_dimension.x / 2, m_dimension.y / 2);
+	sprite.setOrigin(m_pythagoras * 0.5f, m_pythagoras * 0.5f);
 	sprite.setPosition(pyth/2, pyth/2);
 	float angle = 0;
 	if (r == ROTATE_LEFT)
-		angle = -10;
+		angle = -45;
 	else if (r == ROTATE_RIGHT)
-		angle = 10;
+		angle = 45;
 	sprite.setRotation(angle);
 	m_rotationBuffer.clear(sf::Color::Black);
 	m_rotationBuffer.draw(sprite);
@@ -633,7 +637,8 @@ void planeWorld::rotate(Rotation r)
 
 	sf::Image& img = m_rotationBuffer.getTexture().copyToImage();
 	//m_gridImagePtr->copy(img, 0, 0, sf::IntRect((img.getSize().x / 2) - (m_dimension.x / 2), (img.getSize().x / 2) - (m_dimension.x / 2), m_dimension.x, m_dimension.y));
-	m_gridImagePtr->copy(img, 0, 0, sf::IntRect((pyth - m_dimension.x)*0.5, (pyth - m_dimension.y)*0.5, m_dimension.x, m_dimension.y));
+	m_gridImagePtr->copy(img, 0, 0, sf::IntRect(0, 0, m_pythagoras, m_pythagoras));
+	i_getOtherPointer()->copy(img, 0, 0, sf::IntRect(0, 0, m_pythagoras, m_pythagoras));
 }
 
 void planeWorld::setNumberOfThreads(unsigned int t)
@@ -667,35 +672,36 @@ void planeWorld::i_createHourglass()
 	double aspectRatio = static_cast<double>(m_dimension.x) / m_dimension.y;
 	int halfX = static_cast<int>(m_dimension.x / 2);
 	int halfY = static_cast<int>(m_dimension.y / 2);
-	for (int x = 0; x < halfX - halfX * 0.03; ++x)
+
+	for (int x =0; x < halfX - halfX * 0.03; ++x)
 	{
 		for (int y = 0; y < halfY; ++y)
 		{
 			double tmp = static_cast<double>(x + 1) / (y + 1);
 			if(tmp < aspectRatio)
-				m_gridImagePtr->setPixel(x, y, sf::Color::Blue);
+				m_gridImagePtr->setPixel(m_startPoints.x + x, m_startPoints.y + y, sf::Color::Blue);
 		}
 	}
 
 	sf::Image* otherPtr = i_getOtherPointer();
 
 	//copy top left corner to the second image
-	otherPtr->copy(*m_gridImagePtr, 0, 0, sf::IntRect(0, 0, halfX, halfY));
+	otherPtr->copy(*m_gridImagePtr, m_startPoints.x, m_startPoints.y, sf::IntRect(m_startPoints.x, m_startPoints.y, halfX, halfY));
 
 	//flip and copy to top right corner
 	m_gridImagePtr->flipHorizontally();
-	otherPtr->copy(*m_gridImagePtr, halfX, 0, sf::IntRect(halfX, 0, halfX, halfY));
+	otherPtr->copy(*m_gridImagePtr, m_startPoints.x + halfX, m_startPoints.y, sf::IntRect(m_startPoints.x + halfX, m_startPoints.y, halfX, halfY));
 
 	//flip and copy to bottom right corner
 	m_gridImagePtr->flipVertically();
-	otherPtr->copy(*m_gridImagePtr, halfX, halfY, sf::IntRect(halfX, halfY, halfX, halfY));
+	otherPtr->copy(*m_gridImagePtr, m_startPoints.x + halfX, m_startPoints.y + halfY, sf::IntRect(m_startPoints.x + halfX, m_startPoints.y + halfY, halfX, halfY));
 
 	//flip and copy to bottom right corner
 	m_gridImagePtr->flipHorizontally();
-	otherPtr->copy(*m_gridImagePtr, 0, halfY, sf::IntRect(0, halfY, halfX, halfY));
+	otherPtr->copy(*m_gridImagePtr, m_startPoints.x, m_startPoints.y + halfY, sf::IntRect(m_startPoints.x, m_startPoints.y + halfY, halfX, halfY));
 
 	//copy whole image back to the original
-	m_gridImagePtr->copy(*otherPtr, 0, 0, sf::IntRect(0, 0, m_dimension.x, m_dimension.y));
+	m_gridImagePtr->copy(*otherPtr, m_startPoints.x, m_startPoints.y, sf::IntRect(m_startPoints.x, m_startPoints.y, m_dimension.x, m_dimension.y));
 }
 
 std::string planeWorld::cl_errorstring(cl_int err) {
