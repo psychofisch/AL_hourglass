@@ -392,9 +392,9 @@ void planeWorld::i_updateGridCPU(int init)
 	sf::Image* otherPtr = i_getOtherPointer();
 	//omp_set_dynamic(0);
 	#pragma omp parallel for num_threads(m_numberOfThreads)
-	for (int y = m_startPoints.y + init; y < m_startPoints.y + m_dimension.y - 1; y += 2)//no need to calculate last line, because it is the floor
+	for (int y = 0 + init; y < m_pythagoras - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (int x = m_startPoints.x + init; x < m_startPoints.x + m_dimension.x - 1; x += 2)
+		for (int x = 0 + init; x < m_pythagoras - 1; x += 2)
 		{
 			sf::Color fields[4];
 			fields[0] = m_gridImagePtr->getPixel(x, y);
@@ -403,6 +403,7 @@ void planeWorld::i_updateGridCPU(int init)
 			fields[3] = m_gridImagePtr->getPixel(x + 1, y + 1);
 
 			bool isWall = false;
+			int voidCnt = 0;
 			for (int i = 0; i < 4; ++i)
 			{
 				if (fields[i] == sf::Color::Blue)
@@ -410,11 +411,14 @@ void planeWorld::i_updateGridCPU(int init)
 					isWall = true;
 					break;
 				}
+				else if (fields[i] == sf::Color::Black)
+					voidCnt++;
 			}
 
-			if (!isWall)
+			if (!isWall && voidCnt != 4)
 				i_physicRules(fields);
 
+copyPixel:
 			otherPtr->setPixel(x, y, fields[0]);
 			otherPtr->setPixel(x + 1, y, fields[1]);
 			otherPtr->setPixel(x, y + 1, fields[2]);
