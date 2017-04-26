@@ -77,7 +77,7 @@ __kernel void cell(
 		else if (elements[pos[0]] == 0xffffffff && elements[pos[1]] == 0xffffffff && elements[pos[2]] == 0xff000000 && elements[pos[3]] == 0xff000000)
 		{
 			uint result = rseed + tidX%199 + tidY%79;
-			if (result%13 != 0)
+			if (result%7 != 0)
 			{
 				elements[pos[0]] = elements[pos[1]] = 0xff000000;
 				elements[pos[2]] = elements[pos[3]] = 0xffffffff;
