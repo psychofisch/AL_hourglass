@@ -511,7 +511,7 @@ void planeWorld::i_updateGridGPU(int init)
 	handle_clerror(err);
 
 	// buffers
-	sf::Uint32 imageSize = m_dimension.x * m_dimension.y/* * sizeof(sf::Uint32)*/;
+	sf::Uint32 imageSize = m_pythagoras * m_pythagoras;
 	cl::Buffer elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, imageSize * sizeof(sf::Uint32));
 	// fill buffers
 	queue.enqueueWriteBuffer(
@@ -523,8 +523,8 @@ void planeWorld::i_updateGridGPU(int init)
 	);
 
 	m_OpenCLData.kernel.setArg(0, elements);
-	m_OpenCLData.kernel.setArg(1, m_dimension.x);
-	m_OpenCLData.kernel.setArg(2, m_dimension.y);
+	m_OpenCLData.kernel.setArg(1, m_pythagoras);
+	m_OpenCLData.kernel.setArg(2, m_pythagoras);
 	m_OpenCLData.kernel.setArg(3, init);
 	m_OpenCLData.kernel.setArg(4, m_rng->GetNumber()%UINT_MAX);
 
@@ -533,26 +533,26 @@ void planeWorld::i_updateGridGPU(int init)
 	sf::Vector2i globalSize;
 	for (int i = 1; i <= 20; ++i)
 	{
-		if (pow(2, i) > m_dimension.x/2)
+		if (pow(2, i) > m_pythagoras/2)
 		{
 			globalSize.x = pow(2, i);
 			break;
 		}
 	}
 
-	for (int i = 1; i <= 20; ++i)
+	/*for (int i = 1; i <= 20; ++i)
 	{
 		if (pow(2, i) > m_dimension.y/2)
 		{
 			globalSize.y = pow(2, i);
 			break;
 		}
-	}
+	}*/
 
 	/*if (m_debug)
 		std::cout << "threads|real size -> " << globalSize.x << ":" << m_dimension.x << "|" << globalSize.y << ":" << m_dimension.y << std::endl;*/
 
-	cl::NDRange global(globalSize.x, globalSize.y);
+	cl::NDRange global(globalSize.x, globalSize.x);
 	cl::NDRange local(16, 16); //make sure local range is divisible by global range
 	cl::NDRange offset(0, 0);
 
@@ -566,11 +566,11 @@ void planeWorld::i_updateGridGPU(int init)
 
 	sf::Image* otherPtr = i_getOtherPointer();
 	sf::Uint32 pos;
-	for (unsigned int y = 0; y < m_dimension.y; ++y)
+	for (unsigned int y = 0; y < m_pythagoras; ++y)
 	{
-		for (unsigned int x = 0; x < m_dimension.x; ++x)
+		for (unsigned int x = 0; x < m_pythagoras; ++x)
 		{
-			pos = x + (y * m_dimension.x);
+			pos = x + (y * m_pythagoras);
 			otherPtr->setPixel(x, y, sf::Color(_byteswap_ulong(m_OpenCL_imageData[pos])));
 			//otherPtr->setPixel(x, y, sf::Color(m_OpenCL_imageData[pos]));
 		}
