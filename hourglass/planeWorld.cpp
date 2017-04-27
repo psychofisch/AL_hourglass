@@ -304,17 +304,17 @@ void planeWorld::updateGrid()
 		init = 1;
 	m_margo = !m_margo;
 
-	/*if (init == 1)
+	if (init == 1)
 	{
-		for (unsigned int x = m_startPoints.x; x < m_startPoints.x + m_dimension.x; ++x)
+		for (unsigned int x = 0; x < m_pythagoras; ++x)
 			otherPtr->setPixel(x, 0, m_gridImagePtr->getPixel(x, 0));
-		for (unsigned int x = 0; x < m_dimension.x; ++x)
-			otherPtr->setPixel(x, m_dimension.y - 1, m_gridImagePtr->getPixel(x, m_dimension.y - 1));
-		for (unsigned int y = 1; y < m_dimension.y - 1; ++y)
+		for (unsigned int x = 0; x < m_pythagoras; ++x)
+			otherPtr->setPixel(x, m_pythagoras - 1, m_gridImagePtr->getPixel(x, m_pythagoras - 1));
+		for (unsigned int y = 1; y < m_pythagoras - 1; ++y)
 			otherPtr->setPixel(0, y, m_gridImagePtr->getPixel(0, y));
-		for (unsigned int y = 1; y < m_dimension.y - 1; ++y)
-			otherPtr->setPixel(m_dimension.x - 1, y, m_gridImagePtr->getPixel(m_dimension.x - 1, y));
-	}*/
+		for (unsigned int y = 1; y < m_pythagoras - 1; ++y)
+			otherPtr->setPixel(m_pythagoras - 1, y, m_gridImagePtr->getPixel(m_pythagoras - 1, y));
+	}
 
 	if(m_mtMode == MT_CPU)
 		i_updateGridCPU(init);
@@ -400,9 +400,9 @@ void planeWorld::i_updateGridCPU(int init)
 	sf::Image* otherPtr = i_getOtherPointer();
 	//omp_set_dynamic(0);
 	#pragma omp parallel for num_threads(m_numberOfThreads)
-	for (int y = 0 + init; y < m_pythagoras - 1; y += 2)//no need to calculate last line, because it is the floor
+	for (int y = init; y < m_pythagoras - 1; y += 2)//no need to calculate last line, because it is the floor
 	{
-		for (int x = 0 + init; x < m_pythagoras - 1; x += 2)
+		for (int x = init; x < m_pythagoras - 1; x += 2)
 		{
 			sf::Color fields[4];
 			fields[0] = m_gridImagePtr->getPixel(x, y);
@@ -426,7 +426,6 @@ void planeWorld::i_updateGridCPU(int init)
 			if (!isWall && voidCnt != 4)
 				i_physicRules(fields);
 
-copyPixel:
 			otherPtr->setPixel(x, y, fields[0]);
 			otherPtr->setPixel(x + 1, y, fields[1]);
 			otherPtr->setPixel(x, y + 1, fields[2]);
@@ -606,7 +605,7 @@ void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 			{
 				int newX = pos.x + x;
 				int newY = pos.y + y;
-				if(newX > m_startPoints.x && newY > m_startPoints.y && newX < m_startPoints.x + m_dimension.x && newY < m_startPoints.y + m_dimension.y)//assuming the brushSize is always smaller than the image
+				if(newX > 0 && newY > 0 && newX < m_pythagoras && newY < m_pythagoras)//assuming the brushSize is always smaller than the image
 				{
 					sf::Color cellColor = m_gridImagePtr->getPixel(newX, newY);
 					if(cellColor != sf::Color::Blue)
