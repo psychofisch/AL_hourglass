@@ -19,6 +19,8 @@ struct OpenCLData {
 	cl::Program program;
 	cl::Device device;
 	cl::Kernel kernel;
+	cl::CommandQueue queue;
+	cl::Buffer elements;
 	unsigned int platformId;
 	unsigned int deviceId;
 };
@@ -72,7 +74,7 @@ private:
 	sf::Vector2u m_startPoints;
 	sf::RenderWindow* m_window;
 	sf::View m_view;
-	bool m_step, m_margo;
+	bool m_step, m_margo, m_vsync;
 	sf::RectangleShape m_pixel;
 	RNGesus* m_rng;
 	unsigned int m_brushSize;

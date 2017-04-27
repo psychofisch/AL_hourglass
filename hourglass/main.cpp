@@ -57,7 +57,8 @@ void main(int argc, char* argv[])
 	settings.antialiasingLevel = 2;
 
 	sf::RenderWindow window(vm, "Hourglass Simulation", sf::Style::Titlebar | sf::Style::Close | sf::Style::Default, settings);
-	window.setFramerateLimit(60);
+	//window.setFramerateLimit(60);
+	window.setVerticalSyncEnabled(true);
 
 	planeWorld pw;
 	pw.tick = .016f;

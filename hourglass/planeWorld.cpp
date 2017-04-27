@@ -18,6 +18,8 @@ planeWorld::planeWorld()
 	m_brushCircle.setOutlineColor(sf::Color(69, 69, 69, 255));
 	m_brushCircle.setOutlineThickness(1.f);
 
+	m_vsync = true;
+
 	setBrushSize(10);
 }
 
@@ -43,11 +45,11 @@ void planeWorld::run()
 	debug_font.loadFromFile("./NotoSans-Regular.ttf");
 	sf::Text debug_text;
 	debug_text.setFont(debug_font);
-	debug_text.setCharacterSize(32);
+	debug_text.setCharacterSize(24);
 	//debug_text.setScale(sf::Vector2f(1.f, 1.f));
 	debug_text.setOutlineColor(sf::Color::Black);
 	debug_text.setOutlineThickness(1.f);
-	debug_text.setPosition(50.f, 50.f);
+	debug_text.setPosition(20.f, 20.f);
 	bool measure = true,
 		pause = false;
 
@@ -65,6 +67,9 @@ void planeWorld::run()
 	i_createHourglass();
 
 	i_initOpenCL(m_OpenCLData.platformId, m_OpenCLData.deviceId);
+
+	unsigned int fps, fpsCount = 0;
+	float fpsTimer = 0.f;
 
 	bool quit = false;
 	while (!quit)
@@ -113,6 +118,18 @@ void planeWorld::run()
 					m_gridImage1.create(m_pythagoras, m_pythagoras, sf::Color::Black);
 					m_gridImage2.create(m_pythagoras, m_pythagoras, sf::Color::Black);
 					i_createHourglass();
+					break;
+				case sf::Keyboard::M:
+					std::cout << ((m_mtMode == MT_CPU) ? "CPU" : "GPU") << ";" << m_numberOfThreads << ";" << 1 / dt << std::endl;
+					break;
+				case sf::Keyboard::V:
+					if (m_vsync)
+						//m_window->setFramerateLimit(0);
+						m_window->setVerticalSyncEnabled(false);
+					else
+						//m_window->setFramerateLimit(60);
+						m_window->setVerticalSyncEnabled(true);
+					m_vsync = !m_vsync;
 					break;
 				case sf::Keyboard::N:
 					m_step = true;
@@ -219,6 +236,17 @@ void planeWorld::run()
 				updateGrid();
 		}
 
+		++fpsCount;
+
+		if (fpsTimer < .5f)
+			fpsTimer += dt;
+		else
+		{
+			fps = fpsCount * 2;
+			fpsCount = 0;
+			fpsTimer = 0.f;
+		}
+
 		//render
 		m_window->clear(sf::Color(69, 69, 69));
 
@@ -234,15 +262,14 @@ void planeWorld::run()
 		m_window->setView(m_window->getDefaultView());
 
 		debugString.str(std::string());//to clean string
-		int fps = int(1.f / dt);
+		//int fps = int(1.f / dt);
 		debugString << fps << std::endl;
 		debugString << static_cast<int>(mousePos_mapped.x) << ":" << static_cast<int>(mousePos_mapped.y) << std::endl;
 		if (m_mtMode == MT_CPU)
 			debugString << "CPU " << m_numberOfThreads << std::endl;
 		else if (m_mtMode == MT_GPU)
 			debugString << "GPU\n";
-		else
-			debugString << "???\n";
+		debugString << "VSYNC O" << ((m_vsync) ? "N" : "FF") << std::endl;
 
 		debug_text.setString(debugString.str());
 
@@ -509,27 +536,31 @@ void planeWorld::i_initOpenCL(unsigned int platformId, unsigned int deviceId)
 	//create kernels
 	m_OpenCLData.kernel = cl::Kernel(m_OpenCLData.program, "cell", &err);
 	handle_clerror(err);
+
+	m_OpenCLData.queue = cl::CommandQueue(m_OpenCLData.context, m_OpenCLData.device, 0, &err);
+
+	// buffers
+	sf::Uint32 imageSize = m_pythagoras * m_pythagoras;
+	m_OpenCLData.elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, imageSize * sizeof(sf::Uint32));
 }
 
 void planeWorld::i_updateGridGPU(int init)
 {
 	cl_int err = CL_SUCCESS;
-	cl::CommandQueue queue(m_OpenCLData.context, m_OpenCLData.device, 0, &err);
 	handle_clerror(err);
 
-	// buffers
 	sf::Uint32 imageSize = m_pythagoras * m_pythagoras;
-	cl::Buffer elements = cl::Buffer(m_OpenCLData.context, CL_MEM_READ_WRITE, imageSize * sizeof(sf::Uint32));
+
 	// fill buffers
-	queue.enqueueWriteBuffer(
-		elements, // which buffer to write to
+	m_OpenCLData.queue.enqueueWriteBuffer(
+		m_OpenCLData.elements, // which buffer to write to
 		CL_TRUE, // block until command is complete
 		0, // offset
 		imageSize * sizeof(sf::Uint32), // size of write 
 		m_gridImagePtr->getPixelsPtr()// pointer to input
 	);
 
-	m_OpenCLData.kernel.setArg(0, elements);
+	m_OpenCLData.kernel.setArg(0, m_OpenCLData.elements);
 	m_OpenCLData.kernel.setArg(1, m_pythagoras);
 	m_OpenCLData.kernel.setArg(2, m_pythagoras);
 	m_OpenCLData.kernel.setArg(3, init);
@@ -564,12 +595,12 @@ void planeWorld::i_updateGridGPU(int init)
 	cl::NDRange offset(0, 0);
 
 	//std::cout << "call 'cell' kernel; cycle " << i << std::endl;
-	queue.enqueueNDRangeKernel(m_OpenCLData.kernel, offset, global, local);
+	m_OpenCLData.queue.enqueueNDRangeKernel(m_OpenCLData.kernel, offset, global, local);
 
 	//queue.enqueueCopyBuffer(tmp, elements, 0, 0, m_elements.size() * sizeof(char), 0, 0);
 
 	// read back result
-	queue.enqueueReadBuffer(elements, CL_TRUE, 0, imageSize * sizeof(sf::Uint32), m_OpenCL_imageData);
+	m_OpenCLData.queue.enqueueReadBuffer(m_OpenCLData.elements, CL_TRUE, 0, imageSize * sizeof(sf::Uint32), m_OpenCL_imageData);
 
 	sf::Image* otherPtr = i_getOtherPointer();
 	sf::Uint32 pos;
@@ -599,9 +630,8 @@ void planeWorld::draw(sf::Vector2u pos, sf::Color color)
 	{
 		for (int y = -half; y < half; ++y)
 		{
-			int dist = i_manhattanDistance(sf::Vector2i(x, y), sf::Vector2i(0, 0));
-			//std::cout << x << "|" << y << ": " << dist << std::endl;
-			if (dist < m_brushSize * 0.8)
+			int dist = x * x + y * y;
+			if (dist < half * half)
 			{
 				int newX = pos.x + x;
 				int newY = pos.y + y;
@@ -636,11 +666,9 @@ void planeWorld::rotate(Rotation r)
 	sprite.setTexture(tex);
 	sprite.setOrigin(m_pythagoras * 0.5f, m_pythagoras * 0.5f);
 	sprite.setPosition(pyth/2, pyth/2);
-	float angle = 0;
+	float angle = 45.f;
 	if (r == ROTATE_LEFT)
-		angle = -45;
-	else if (r == ROTATE_RIGHT)
-		angle = 45;
+		angle *= -1;
 	sprite.setRotation(angle);
 	m_rotationBuffer.clear(sf::Color::Black);
 	m_rotationBuffer.draw(sprite);
