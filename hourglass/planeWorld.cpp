@@ -72,6 +72,8 @@ void planeWorld::run()
 	float fpsTimer = 0.f;
 
 	bool quit = false;
+	bool drawMode = false;
+
 	while (!quit)
 	{
 		time.restart();
@@ -170,6 +172,9 @@ void planeWorld::run()
 					if (m_numberOfThreads < omp_get_max_threads())
 						m_numberOfThreads++;
 					break;
+				case sf::Keyboard::C:
+					drawMode = !drawMode;
+					break;
 				case sf::Keyboard::Escape:
 					quit = true;
 					break;
@@ -195,7 +200,13 @@ void planeWorld::run()
 		}
 		else if (sf::Mouse::isButtonPressed(sf::Mouse::Right) && gridSprite.getGlobalBounds().contains(mousePos_mapped))
 		{
-			draw(static_cast<sf::Vector2u>(mousePos_mapped), sf::Color::Black);
+			sf::Color tmpCol;
+			if (drawMode)
+				tmpCol = sf::Color::Black;
+			else
+				tmpCol = sf::Color::Blue;
+
+			draw(static_cast<sf::Vector2u>(mousePos_mapped), tmpCol);
 		}
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
@@ -477,7 +488,8 @@ void planeWorld::i_initOpenCL(unsigned int platformId, unsigned int deviceId)
 
 	// create a context and get available devices
 	cl::Platform platform = platforms[platformId]; // on a different machine, you may have to select a different platform
-	std::cout << "Platform Name: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
+	if(m_debug)
+		std::cout << "Platform Name: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 	cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platform)(), 0 };
 
 	m_OpenCLData.context = cl::Context(CL_DEVICE_TYPE_ALL, properties);
